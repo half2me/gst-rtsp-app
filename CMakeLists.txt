@@ -9,22 +9,38 @@ add_definitions(-DVERSION=\"${PROJECT_VERSION}\")
 include(FindPkgConfig)
 PKG_CHECK_MODULES(GST REQUIRED # for available packages see 'pkg-config --list-all | grep gst'
   gstreamer-1.0
+  gstreamer-net-1.0
   gstreamer-rtsp-server-1.0
 )
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GST_CFLAGS}")
 
+include_directories(PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${GST_INCLUDE_DIRS}
+)
+link_libraries(
+  ${GST_LDFLAGS}
+)
+
 # App target
 add_executable(${CMAKE_PROJECT_NAME} "")
-
 target_sources(${CMAKE_PROJECT_NAME}
   PRIVATE
     src/ct1-rtsp-server.c
 )
-target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/src
-  ${GST_INCLUDE_DIRS}
+
+# Tools
+set(APP_NAME "YuvPlayer")
+add_executable(${APP_NAME} "")
+target_sources(${APP_NAME}
+  PRIVATE
+    src/PlayCT1YUV422.c
 )
-target_link_libraries(${CMAKE_PROJECT_NAME}
-  ${GST_LDFLAGS}
+
+set(APP_NAME "appsrc")
+add_executable(${APP_NAME} "")
+target_sources(${APP_NAME}
+  PRIVATE
+    src/appsrc.c
 )
