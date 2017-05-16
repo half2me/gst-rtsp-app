@@ -68,6 +68,7 @@ main (int argc, char *argv[])
 
   /* create a server instance */
   server = gst_rtsp_server_new ();
+  gst_rtsp_server_set_service(server, "8554");
 
 #ifdef WITH_AUTH
   /* make a new authentication manager. it can be added to control access to all
@@ -127,10 +128,10 @@ main (int argc, char *argv[])
    * any launch line works as long as it contains elements named pay%d. Each
    * element with pay%d names will be a stream */
   factory = gst_rtsp_media_factory_new ();
-  gst_rtsp_media_factory_set_launch (factory, 
-    "( ctsrc ! videoscale ! video/x-raw,width=1024,height=768,framerate=15/1 ! timeoverlay "
-    " ! tee name=lofasz ! queue ! videoconvert ! xvimagesink "
-    " lofasz. ! queue ! vaapih264enc ! rtph264pay name=pay0 pt=96 )"
+  gst_rtsp_media_factory_set_launch (factory,
+    "( v4l2src ! videoscale ! video/x-raw,width=1024,height=768,framerate=15/1 ! timeoverlay "
+    " ! tee name=lofasz ! queue ! videoconvert ! aasink driver=curses "
+    " lofasz. ! queue ! vaapipostproc ! vaapih264enc ! rtph264pay name=pay0 pt=96 )"
   );
 
   // Set this shitty pipeline to shared between all the fucked up clients so they won't mess up the driver's state
@@ -160,7 +161,7 @@ main (int argc, char *argv[])
     goto failed;
 
   /* add a timeout for the session cleanup */
-  g_timeout_add_seconds (2, (GSourceFunc) timeout, server);
+  g_timeout_add_seconds (1, (GSourceFunc) timeout, server);
 
   /* start serving, this never stops */
 #ifdef WITH_TLS
