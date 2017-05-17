@@ -36,6 +36,7 @@ add_executable(${APP_NAME} "")
 target_sources(${APP_NAME}
   PRIVATE
     src/PlayCT1YUV422.c
+    src/rtsp-server.c
 )
 
 set(APP_NAME "appsrc")
