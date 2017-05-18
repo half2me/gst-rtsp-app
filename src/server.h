@@ -7,9 +7,6 @@
 
 
 #define MAX_RTSP_PIPES 8
-#define TEST_TYPE_RTSP_MEDIA_FACTORY      (test_rtsp_media_factory_get_type ())
-
-GType test_rtsp_media_factory_get_type (void);
 
 class RtspServer {
 public:
@@ -24,6 +21,7 @@ public:
   GstElement *UsePipe(int i);
 
   static GstElement * ImportPipeline (GstRTSPMediaFactory * factory, const GstRTSPUrl * url);
+  static GstElement * CreateMediaPipe(GstRTSPMediaFactory *factory, GstRTSPMedia *media);
 
   static GstElement* rtsp_pipes[MAX_RTSP_PIPES];
 
@@ -36,6 +34,9 @@ private:
 
   static gpointer ThreadLoopFunc(gpointer data);
 
+  GstRTSPMountPoints *mounts[MAX_RTSP_PIPES];
+  GstRTSPMediaFactory *factory[MAX_RTSP_PIPES];
+  GstRTSPServer *server;
   GThread *rtsp_thread;
 
 };

@@ -7,6 +7,9 @@
 #include <cstdio>
 #include "server.h"
 
+#define TEST_TYPE_RTSP_MEDIA_FACTORY      (test_rtsp_media_factory_get_type ())
+GType test_rtsp_media_factory_get_type(void);
+
 typedef struct TestRTSPMediaFactoryClass TestRTSPMediaFactoryClass;
 typedef struct TestRTSPMediaFactory TestRTSPMediaFactory;
 
@@ -29,18 +32,10 @@ RtspServer::RtspServer() {
 RtspServer::~RtspServer() {
 }
 
-GstElement *
-RtspServer::ImportPipeline(GstRTSPMediaFactory *factory, const GstRTSPUrl *url) {
-
-  char *ptr;
-  long index = strtol(gst_rtsp_media_factory_get_launch(factory), &ptr, 2);
-
-  return rtsp_pipes[index];
-}
-
 gpointer
 RtspServer::ThreadLoopFunc(gpointer data) {
   GMainLoop *loop = g_main_loop_new(NULL, FALSE);
+  g_print("RTSP server started.\n");
   g_main_loop_run(loop);
   g_print("RTSP server stopped.\n");
   g_main_loop_unref(loop);
@@ -59,6 +54,8 @@ RtspServer::SessionPoolTimeout(GstRTSPServer *server)
 GstRTSPMediaFactory *
 RtspServer::CreateMediaFactory (void)
 {
+  g_print("CreateMediaFactory\n");
+
   return
     (GstRTSPMediaFactory*)
       g_object_new (TEST_TYPE_RTSP_MEDIA_FACTORY, NULL);
@@ -67,9 +64,7 @@ RtspServer::CreateMediaFactory (void)
 gboolean
 RtspServer::Init() {
 
-  GstRTSPServer *server;
-  GstRTSPMountPoints *mounts[MAX_RTSP_PIPES];
-  GstRTSPMediaFactory *factory[MAX_RTSP_PIPES];
+  g_print ("RTSP Server init...\n");
 
   // create a tweaked server instance
   server = gst_rtsp_server_new ();
@@ -99,7 +94,7 @@ RtspServer::Init() {
   }
 
   /* add a timeout for the session cleanup */
-  g_timeout_add_seconds(1, (GSourceFunc) SessionPoolTimeout, server);
+  g_timeout_add_seconds(2, (GSourceFunc) SessionPoolTimeout, server);
 
   // Start thread for rtsp server
   rtsp_thread = g_thread_new("rtsp-thread", ThreadLoopFunc, NULL);
@@ -124,7 +119,7 @@ RtspServer::UnInit()
 GstElement*
 RtspServer::UsePipe(int i){
 
-  if (i<0 || i>=MAX_RTSP_PIPES) return NULL;
+  if (i<0 || i>=MAX_RTSP_PIPES || rtsp_pipes[i] ) return NULL;
 
   char buf[16];
   sprintf(buf, "rtsppipe%d", i);
@@ -132,12 +127,43 @@ RtspServer::UsePipe(int i){
 
   if (!rtsp_pipes[i]) return NULL;
 
+  g_print("Pipe%d created for request.\n", i);
+
   return rtsp_pipes[i];
 }
 
 
+GstElement *
+RtspServer::ImportPipeline(GstRTSPMediaFactory *factory, const GstRTSPUrl *url) {
+  char *ptr;
+  long index = strtol(gst_rtsp_media_factory_get_launch(factory), &ptr, 2);
+
+  g_print("- RTSP pipe%ld imported.\n", index);
+  return rtsp_pipes[index];
+}
+
+
+GstElement *
+RtspServer::CreateMediaPipe(GstRTSPMediaFactory *factory, GstRTSPMedia *media) {
+  GstElement *pipeline;
+  char *ptr;
+  long index = strtol(gst_rtsp_media_factory_get_launch(factory), &ptr, 2);
+  char buf[16];
+  sprintf(buf, "rtsp-pipeline%ld", index);
+
+  pipeline = gst_pipeline_new (buf);
+  gst_rtsp_media_take_pipeline (media, GST_PIPELINE_CAST (pipeline));
+
+  // This way the media will not be reinitialized - our created pipe is not lost
+  gst_rtsp_media_set_reusable(media, TRUE);
+
+  g_print("- Overridden MF::create_pipeline is called.\n");
+  return pipeline;
+}
+
+
 G_DEFINE_TYPE (TestRTSPMediaFactory, test_rtsp_media_factory,
-  GST_TYPE_RTSP_MEDIA_FACTORY);
+               GST_TYPE_RTSP_MEDIA_FACTORY);
 
 static void
 test_rtsp_media_factory_class_init (TestRTSPMediaFactoryClass * test_klass)
@@ -147,6 +173,7 @@ test_rtsp_media_factory_class_init (TestRTSPMediaFactoryClass * test_klass)
   GstRTSPMediaFactoryClass *mf_klass =
     (GstRTSPMediaFactoryClass *) (test_klass);
   mf_klass->create_element = RtspServer::ImportPipeline;
+  mf_klass->create_pipeline = RtspServer::CreateMediaPipe;
 }
 
 static void
