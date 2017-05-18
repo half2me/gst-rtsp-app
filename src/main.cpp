@@ -1,12 +1,18 @@
+//
+// Created by pszekeres on 2017.05.18..
+//
 #include <gst/gst.h>
 #include <gst/rtsp-server/rtsp-server.h>
 
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "rtsp-server.h"
+#include "server.h"
 
 int main(int argc, char *argv[]) {
+
+  RtspServer server;
+
   // Tee for source pipe
   GstElement *source, *tee;
 
@@ -37,7 +43,7 @@ int main(int argc, char *argv[]) {
   main_pipe = gst_pipeline_new("main_pipe");
   if (!main_pipe) {
     g_printerr("Error creating main pipe!\n");
-    goto unref;
+    exit(1);
     // TODO ERROR UNREF
   }
 
@@ -107,7 +113,7 @@ int main(int argc, char *argv[]) {
     intersrc[0] = gst_element_factory_make ("intervideosrc", buf);
     if (!intersink[for_i] || !intersrc[for_i]) {
       g_printerr("Error creating intervideo pair %d.\n", for_i);
-      goto unref;
+      exit(1);
     }
 
     // create gateway pairs
@@ -126,7 +132,7 @@ int main(int argc, char *argv[]) {
     NULL);
 
   gst_bin_add_many (
-    GST_BIN (use_rtsp_pipeline(0)),
+    GST_BIN (server.UsePipe(0)),
     intersrc[0], b1_scale, b1_videorate, b1_vaapiproc, b1_vaapienc, b1_pay,
     NULL);
 
@@ -149,19 +155,19 @@ int main(int argc, char *argv[]) {
   // Link pipelines
   if (!gst_element_link_many(source, tee, NULL)) {
     g_critical ("Unable to link source pipe!");
-    goto unref;
+    exit(1);
   }
 
   // Link the first branch
   if(!gst_element_link_many(queue[0], valve[0], b0_convert, b0_sink, NULL)) {
     g_critical ("Unable to link b0_sink");
-    goto unref;
+    exit(1);
   }
 
   // Link the second branch
   if(!gst_element_link_many(queue[1], valve[1], intersink[0], NULL)) {
     g_critical ("Unable to link intersink.");
-    goto unref;
+    exit(1);
   }
 
   // Link the rtsp branch
@@ -170,7 +176,7 @@ int main(int argc, char *argv[]) {
      || !gst_element_link_many(b1_vaapiproc, b1_vaapienc, b1_pay, NULL))
   {
     g_critical ("Unable to link intersrc.");
-    goto unref;
+    exit(1);
   }
 
 
@@ -178,7 +184,7 @@ int main(int argc, char *argv[]) {
   GstPadTemplate *tee_src_pad_template;
   if ( !(tee_src_pad_template = gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS (tee), "src_%u"))) {
     g_critical ("Unable to get pad template");
-    goto unref;
+    exit(1);
   }
 
   for (for_i=0; for_i<branches_used; for_i++) {
@@ -193,7 +199,7 @@ int main(int argc, char *argv[]) {
     // Link the tee to the queue
     if (gst_pad_link(tee_queue_pad[for_i], queue_tee_pad[for_i]) != GST_PAD_LINK_OK) {
       g_critical ("Tee for branch%d could not be linked.\n", for_i);
-      goto unref;
+      exit(1);
     }
     gst_object_unref(queue_tee_pad[for_i]);
   }
@@ -202,10 +208,10 @@ int main(int argc, char *argv[]) {
   if (gst_element_set_state (main_pipe, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE)
   {
     g_printerr ("Unable to set the main pipeline to the playing state.\n");
-    goto unref;
+    exit(1);
   }
 
-  rtsp_server_init();
+  server.Init();
 
   // Wait until error or EOS
   gboolean exit = FALSE;
@@ -258,10 +264,9 @@ int main(int argc, char *argv[]) {
     gst_message_unref(msg);
   }
 
-  rtsp_server_deinit();
+  server.UnInit();
 
   /* Free resources */
-  unref:
   gst_element_set_state (main_pipe, GST_STATE_NULL);
   if (main_pipe) gst_object_unref (main_pipe);
   if (main_bus) gst_object_unref (main_bus);
