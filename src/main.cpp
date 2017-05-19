@@ -20,6 +20,10 @@ int main(int argc, char *argv[]) {
   GstElement *b0_convert, *b0_sink;
   GstElement *b1_scale, *b1_videorate, *b1_vaapiproc, *b1_vaapienc, *b1_pay;
 
+  // create our pipes
+  GstElement *main_pipe = NULL, *rtsp_pipe[4] = {};
+  GstBus *main_bus = NULL;
+
   // elements to build up branches
   const int branches_used = 2;
   GstPad *tee_queue_pad[branches_used];
@@ -28,29 +32,40 @@ int main(int argc, char *argv[]) {
   GstElement *valve[branches_used];
 
 
-  // create the pipelines used by rtsp
-  const int rtsp_pipes_used = 1;
-  GstElement *intersink[rtsp_pipes_used], *intersrc[rtsp_pipes_used]; // Main pipe doesn't require inter element
-
-  // create our main pipe
-  GstElement *main_pipe = NULL; // pipe0 is for the main pipe
-  GstBus *main_bus = NULL; // pipe0 also needs bus
-
   // Initialize GStreamer
+  // --------------------
   gst_init (&argc, &argv);
 
-  // create the main pipe
+  // create our pipes
   main_pipe = gst_pipeline_new("main_pipe");
-  if (!main_pipe) {
-    g_printerr("Error creating main pipe!\n");
+  rtsp_pipe[0] = gst_pipeline_new("h264_encoder_pipe");
+
+  if (!main_pipe || !rtsp_pipe[0]) {
+    g_printerr("Error creating pipes!\n");
     exit(1);
     // TODO ERROR UNREF
   }
 
-  // attach bus to the pipe
-  main_bus = gst_element_get_bus (main_pipe);
+  GstCaps *main_caps = gst_caps_new_simple(
+    "video/x-raw",
+    "width", G_TYPE_INT, 640,
+    "height", G_TYPE_INT, 480,
+    "framerate", GST_TYPE_FRACTION, 30, 1,
+    NULL
+  );
 
-  // Create the object instances
+  GstCaps *h264_caps = gst_caps_new_simple(
+    "video/x-raw",
+    "width", G_TYPE_INT, 640,
+    "height", G_TYPE_INT, 480,
+    "framerate", GST_TYPE_FRACTION, 30, 1,
+    NULL
+  );
+
+
+  // Create the element instances
+  // ----------------------------
+
   source = gst_element_factory_make ("v4l2src", "source");
   tee = gst_element_factory_make ("tee", "tee");
   if ( !source || !tee ) {
@@ -76,15 +91,20 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
+
   // Set properties
+  // ----------------------------
+
   g_object_set (b1_pay, "pt", 96, NULL);
   //g_object_set (source2, "pattern", 18, NULL);
   //g_object_set (b0_sink, "driver", "curses", NULL);
 
 
-  char buf[8];
+  // Useful tempvars in C
+  char buf[32];
   int for_i;
 
+  /**********************************************/
   // create queues in front of branches
   for (for_i=0; for_i<branches_used; for_i++) {
 
@@ -102,58 +122,25 @@ int main(int argc, char *argv[]) {
     // open valves
     g_object_set(valve[for_i], "drop", FALSE, NULL);
   }
-
-
-  // create the pipes
-  for (for_i=0; for_i<rtsp_pipes_used; for_i++) {
-    // Create intervideo objects for each RTSP pipe
-    sprintf(buf, "intersink%d", for_i);
-    intersink[0] = gst_element_factory_make ("intervideosink", buf);
-    sprintf(buf, "intersrc%d", for_i);
-    intersrc[0] = gst_element_factory_make ("intervideosrc", buf);
-    if (!intersink[for_i] || !intersrc[for_i]) {
-      g_printerr("Error creating intervideo pair %d.\n", for_i);
-      exit(1);
-    }
-
-    // create gateway pairs
-    sprintf(buf, "dimension-door-%d", for_i);
-    g_object_set(intersink[for_i], "channel", buf, NULL);
-    g_object_set(intersrc[for_i], "channel", buf, NULL);
-
-  }
+  /****************************************/
 
   // Build the pipelines
+  // ----------------------------
+
   gst_bin_add_many (
     GST_BIN (main_pipe),
     source, tee,
     queue[0], valve[0], b0_convert, b0_sink,
-    queue[1], valve[1], intersink[0],
+    queue[1], valve[1],
     NULL);
 
   gst_bin_add_many (
-    GST_BIN (server.UsePipe(0)),
-    intersrc[0], b1_scale, b1_videorate, b1_vaapiproc, b1_vaapienc, b1_pay,
+    GST_BIN (rtsp_pipe[0]),
+    b1_scale, b1_videorate, b1_vaapiproc, b1_vaapienc, b1_pay,
     NULL);
 
-  GstCaps *main_caps = gst_caps_new_simple(
-    "video/x-raw",
-    "width", G_TYPE_INT, 640,
-    "height", G_TYPE_INT, 480,
-    "framerate", GST_TYPE_FRACTION, 15, 1,
-    NULL
-  );
-
-  GstCaps *h264_caps = gst_caps_new_simple(
-    "video/x-raw",
-    "width", G_TYPE_INT, 640,
-    "height", G_TYPE_INT, 480,
-    "framerate", GST_TYPE_FRACTION, 15, 1,
-    NULL
-  );
-
   // Link pipelines
-  if (!gst_element_link_many(source, tee, NULL)) {
+  if (!gst_element_link_filtered(source, tee, main_caps)) {
     g_critical ("Unable to link source pipe!");
     exit(1);
   }
@@ -165,13 +152,13 @@ int main(int argc, char *argv[]) {
   }
 
   // Link the second branch
-  if(!gst_element_link_many(queue[1], valve[1], intersink[0], NULL)) {
+  if(!gst_element_link_many(queue[1], valve[1], NULL)) {
     g_critical ("Unable to link intersink.");
     exit(1);
   }
 
   // Link the rtsp branch
-  if(!gst_element_link_many(intersrc[0], b1_scale, b1_videorate, NULL)
+  if(!gst_element_link_many(b1_scale, b1_videorate, NULL)
      || !gst_element_link_filtered(b1_videorate, b1_vaapiproc, h264_caps)
      || !gst_element_link_many(b1_vaapiproc, b1_vaapienc, b1_pay, NULL))
   {
@@ -179,7 +166,13 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
+  server.Init();
+  if (!server.ConnectPipe(rtsp_pipe[0], main_pipe, valve[1], b1_scale)) {
+    g_critical ("Unable to connect rtsp_pipe of encoder.");
+    exit(1);
+  }
 
+/*************************************************************/
   // Get the source pad template of the tee element
   GstPadTemplate *tee_src_pad_template;
   if ( !(tee_src_pad_template = gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS (tee), "src_%u"))) {
@@ -204,21 +197,46 @@ int main(int argc, char *argv[]) {
     gst_object_unref(queue_tee_pad[for_i]);
   }
 
+/*************************************************/
+  // attach bus to the pipe
+  main_bus = gst_element_get_bus (main_pipe);
+  GstState encoder_state, encoder_old_state = GST_STATE_VOID_PENDING;
+
   // Start playing
-  if (gst_element_set_state (main_pipe, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE)
-  {
+  if (gst_element_set_state (main_pipe, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
     g_printerr ("Unable to set the main pipeline to the playing state.\n");
     exit(1);
   }
-
-  server.Init();
 
   // Wait until error or EOS
   gboolean exit = FALSE;
   while (!exit) {
 
+    gst_element_get_state (b1_vaapienc, &encoder_state, NULL, GST_CLOCK_TIME_NONE);
+    if (encoder_old_state != encoder_state) {
+      switch (encoder_state) {
+        case GST_STATE_NULL:
+          sprintf(buf, "GST_STATE_NULL");
+          break;
+        case GST_STATE_READY:
+          sprintf(buf, "GST_STATE_READY");
+          break;
+        case GST_STATE_PAUSED:
+          sprintf(buf, "GST_STATE_PAUSED");
+          break;
+        case GST_STATE_PLAYING:
+          sprintf(buf, "GST_STATE_PLAYING");
+          break;
+        default:
+          sprintf(buf, "GST_STATE_VOID_PENDING");
+          break;
+      }
+      g_print("Encoder state: %s\n", buf);
+      encoder_old_state = encoder_state;
+    }
+
     // Check messages on each pipe
-    GstMessage *msg = gst_bus_timed_pop(main_bus, 5000000);
+    GstMessage *msg = gst_bus_timed_pop(main_bus, 10000000);
     if (!msg) continue;
 
     GError *err;
@@ -238,23 +256,7 @@ int main(int argc, char *argv[]) {
         exit = TRUE;
         break;
       case GST_MESSAGE_STATE_CHANGED: {
-        GstState old_state, new_state, pending_state;
-        gst_message_parse_state_changed(msg, &old_state, &new_state, &pending_state);
-/*          if (GST_MESSAGE_SRC (msg) == GST_OBJECT (data->playbin)) {
-          if (new_state == GST_STATE_PLAYING) {
-            g_object_set(queue[1], "drop", TRUE, NULL);
-          }
-        }
-*/
-        if (new_state == GST_STATE_PLAYING) {
-          g_print("GST_STATE_PLAYING\n");
-        } else
-        if (new_state == GST_STATE_PAUSED) {
-          g_print("GST_STATE_PAUSED\n");
-        } else
-        if (new_state == GST_STATE_NULL) {
-          g_print("GST_STATE_NULL\n");
-        }
+
         break;
       }
       default:
@@ -268,6 +270,7 @@ int main(int argc, char *argv[]) {
 
   /* Free resources */
   gst_element_set_state (main_pipe, GST_STATE_NULL);
+
   if (main_pipe) gst_object_unref (main_pipe);
   if (main_bus) gst_object_unref (main_bus);
 

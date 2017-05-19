@@ -18,8 +18,15 @@ public:
 
   void UnInit();
 
-  GstElement *UsePipe(int i);
+  GstElement* ConnectPipe(
+    GstElement* pipe_to_use,
+    GstElement* pipe_to_connect,
+    GstElement* src_end_point,
+    GstElement* dst_start_point
+  );
+  
 
+  // Override default rtsp gst_rtsp_server mediafactory implementation
   static GstElement * ImportPipeline (GstRTSPMediaFactory * factory, const GstRTSPUrl * url);
   static GstElement * CreateMediaPipe(GstRTSPMediaFactory *factory, GstRTSPMedia *media);
 
@@ -27,17 +34,17 @@ public:
 
 private:
 
-  GstRTSPMediaFactory* CreateMediaFactory();
-
   // this timeout is periodically run to clean up the expired rtsp sessions from the pool.
   static gboolean SessionPoolTimeout(GstRTSPServer *server);
 
   static gpointer ThreadLoopFunc(gpointer data);
 
+  GstRTSPServer *gst_rtsp_server;
+  GThread *gst_rtsp_thread;
+  unsigned int pipe_count;
   GstRTSPMountPoints *mounts[MAX_RTSP_PIPES];
   GstRTSPMediaFactory *factory[MAX_RTSP_PIPES];
-  GstRTSPServer *server;
-  GThread *rtsp_thread;
+  GstElement *intersink[MAX_RTSP_PIPES], *intersrc[MAX_RTSP_PIPES];
 
 };
 

@@ -13,7 +13,6 @@ PKG_CHECK_MODULES(GST REQUIRED # for available packages see 'pkg-config --list-a
   gstreamer-rtsp-server-1.0
 )
 
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GST_CFLAGS}")
 
 include_directories(PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src

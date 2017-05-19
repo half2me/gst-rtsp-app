@@ -21,12 +21,12 @@ typedef struct TestRTSPMediaFactory TestRTSPMediaFactory;
 
 struct TestRTSPMediaFactoryClass
 {
-    GstRTSPMediaFactoryClass parent;
+  GstRTSPMediaFactoryClass parent;
 };
 
 struct TestRTSPMediaFactory
 {
-    GstRTSPMediaFactory parent;
+  GstRTSPMediaFactory parent;
 };
 
 GstRTSPMediaFactory *
