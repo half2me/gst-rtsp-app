@@ -18,7 +18,7 @@ public:
 
   void UnInit();
 
-  GstElement* ConnectPipe(
+  gboolean ConnectPipe(
     GstElement* pipe_to_use,
     GstElement* pipe_to_connect,
     GstElement* src_end_point,

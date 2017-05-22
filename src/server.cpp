@@ -27,6 +27,10 @@ RtspServer::RtspServer() {
   // TODO NULL init each f*ckin element
   gst_rtsp_thread = NULL;
   pipe_count = 0;
+
+  // create a tweaked gst_rtsp_server instance
+  gst_rtsp_server = gst_rtsp_server_new ();
+  gst_rtsp_server_set_service(gst_rtsp_server, "8554");
 }
 
 RtspServer::~RtspServer() {
@@ -46,20 +50,13 @@ RtspServer::Init() {
 
   g_print ("RTSP Server init...\n");
 
-  // create a tweaked gst_rtsp_server instance
-  gst_rtsp_server = gst_rtsp_server_new ();
-  gst_rtsp_server_set_service(gst_rtsp_server, "8554");
-
   /* attach the gst_rtsp_server to the default maincontext */
   if (gst_rtsp_server_attach (gst_rtsp_server, NULL) == 0) {
     g_print ("Failed to attach the server\n");
     return FALSE;
   }
-  else {
-    g_print ("Stream ready at rtsp://127.0.0.1:8554/test\n");
-  }
 
-  /* add a timeout for the session cleanup */
+  // add a timeout for the session cleanup
   g_timeout_add_seconds(2, (GSourceFunc) SessionPoolTimeout, gst_rtsp_server);
 
   // Start thread for rtsp gst_rtsp_server
@@ -82,7 +79,7 @@ RtspServer::UnInit()
 
 }
 
-GstElement*
+gboolean
 RtspServer::ConnectPipe(
   GstElement* pipe_to_use,
   GstElement* pipe_to_connect,
@@ -99,12 +96,11 @@ RtspServer::ConnectPipe(
 
   rtsp_pipes[pipe_count] = pipe_to_use;
 
-  mounts[pipe_count] = gst_rtsp_server_get_mount_points (gst_rtsp_server);
   factory[pipe_count] = (GstRTSPMediaFactory*)g_object_new (TEST_TYPE_RTSP_MEDIA_FACTORY, NULL);
-
-  char buf[16];
+  mounts[pipe_count] = gst_rtsp_server_get_mount_points (gst_rtsp_server);
 
   // use the launch string to identify pipe index
+  char buf[16];
   sprintf(buf, "%d", pipe_count);
   gst_rtsp_media_factory_set_launch (factory[pipe_count], buf);
 
@@ -136,15 +132,18 @@ RtspServer::ConnectPipe(
   gst_bin_add ( GST_BIN (pipe_to_use), intersrc[pipe_count]);
 
   // link the portals
-  if (!gst_element_link(src_end_point, intersink[pipe_count]) ||
-      !gst_element_link(dst_start_point, intersrc[pipe_count]))
+  if (!gst_element_link(intersrc[pipe_count], dst_start_point))
+  {
+    return FALSE;
+  }
+  if (!gst_element_link(src_end_point, intersink[pipe_count]))
   {
     return FALSE;
   }
 
   pipe_count++;
 
-  return intersink[pipe_count];
+  return TRUE;
 }
 
 GstElement *
@@ -152,7 +151,7 @@ RtspServer::ImportPipeline(GstRTSPMediaFactory *factory, const GstRTSPUrl *url) 
   char *ptr;
   long index = strtol(gst_rtsp_media_factory_get_launch(factory), &ptr, 2);
 
-  g_print("- RTSP pipe%ld imported.\n", index);
+  g_print("Media #%ld is initialized to use pipe%ld.\n", index, index);
   return rtsp_pipes[index];
 }
 
@@ -197,16 +196,15 @@ G_DEFINE_TYPE (TestRTSPMediaFactory, test_rtsp_media_factory,
 static void
 test_rtsp_media_factory_class_init (TestRTSPMediaFactoryClass * test_klass)
 {
-  //g_print("Custom mediafactoryClass \n");
-
   GstRTSPMediaFactoryClass *mf_klass =
     (GstRTSPMediaFactoryClass *) (test_klass);
   mf_klass->create_element = RtspServer::ImportPipeline;
   mf_klass->create_pipeline = RtspServer::CreateMediaPipe;
+
+  g_print("Custom MediaFactory initialized.\n");
 }
 
 static void
 test_rtsp_media_factory_init (TestRTSPMediaFactory * factory)
 {
-  //g_print("Custom mediafactory :D \n");
 }
