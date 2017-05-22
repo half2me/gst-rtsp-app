@@ -45,6 +45,7 @@ public:
 private:
   // this timeout is periodically run to clean up the expired rtsp sessions from the pool.
   static gboolean SessionPoolTimeout(GstRTSPServer *server);
+  static void StateChange(GstRTSPMedia *gstrtspmedia, gint arg1, gpointer user_data);
 };
 
 #endif //GST_RTSP_APP_SERVER_H

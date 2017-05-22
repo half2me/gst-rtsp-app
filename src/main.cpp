@@ -17,11 +17,11 @@ GstElement *main_pipe = NULL, *rtsp_pipe[2] = {};
 
 void Stop() {
 
-  if (io_stdin)
-    g_io_channel_unref (io_stdin);
-
   if (msg_watch)
     g_source_remove (msg_watch);
+
+  if (io_stdin)
+    g_io_channel_unref (io_stdin);
 
   if (server)
     server->Stop();
@@ -35,8 +35,6 @@ void Stop() {
     g_main_loop_quit(main_loop);
     g_main_loop_unref(main_loop);
   }
-
-  // TODO unref other pipes if not destroyed by rtsp-server (it owns the pipes)
 }
 
 gboolean LinkToTee(GstElement* tee, GstElement* element){
@@ -50,15 +48,13 @@ gboolean LinkToTee(GstElement* tee, GstElement* element){
   GstPad* tee_queue_pad, *queue_tee_pad;
   // Obtaining request pads for the tee elements
   tee_queue_pad = gst_element_request_pad(tee, tee_src_pad_template, NULL, NULL);
-  // TODO identify elem
-  //  g_print("Obtained request pad %s for queue%d.\n", gst_pad_get_name (tee_queue_pad[for_i]));
 
   // Get sinkpad of the queue element
   queue_tee_pad = gst_element_get_static_pad(element, "sink");
 
   // Link the tee to the queue
   if (gst_pad_link(tee_queue_pad, queue_tee_pad) != GST_PAD_LINK_OK) {
-    g_critical ("Tee for branch could not be linked.\n");
+    g_critical ("Tee for branch of %s could not be linked.\n", gst_element_get_name(element));
     // TODO identify elem
     Stop();
   }
@@ -66,38 +62,14 @@ gboolean LinkToTee(GstElement* tee, GstElement* element){
   gst_object_unref(queue_tee_pad);
   gst_object_unref(tee_queue_pad);
 
+  return TRUE;
 }
 
-void printStateIfChanged(GstElement* element, GstState &reference_state) {
-  GstState curr_state;
-  gst_element_get_state(element, &curr_state, NULL, 100000);
-  if (curr_state != reference_state) {
-    char buf[32];
-    switch (curr_state) {
-      case GST_STATE_NULL:
-        sprintf(buf, "GST_STATE_NULL");
-        break;
-      case GST_STATE_READY:
-        sprintf(buf, "GST_STATE_READY");
-        break;
-      case GST_STATE_PAUSED:
-        sprintf(buf, "GST_STATE_PAUSED");
-        break;
-      case GST_STATE_PLAYING:
-        sprintf(buf, "GST_STATE_PLAYING");
-        break;
-      default:
-        sprintf(buf, "GST_STATE_VOID_PENDING");
-        break;
-    }
-    g_print("%s state: %s\n", gst_element_get_name(element), buf);
-    reference_state = curr_state;
-  }
-}
 
 static gboolean MessageHandler(GstBus * bus, GstMessage * msg, gpointer user_data) {
   GError *err;
   gchar *debug_info;
+  GstState state;
 
   switch (GST_MESSAGE_TYPE (msg)) {
 
@@ -114,8 +86,8 @@ static gboolean MessageHandler(GstBus * bus, GstMessage * msg, gpointer user_dat
     printMessage:
       g_print("Message received from element %s: %s\n", GST_OBJECT_NAME (msg->src), err->message);
       g_print("Debugging information: %s\n", debug_info ? debug_info : "none");
-      g_clear_error(&err);
-      g_free(debug_info);
+      if (err) g_clear_error(&err);
+      if (debug_info) g_free(debug_info);
       break;
 
     case GST_MESSAGE_EOS:
@@ -123,47 +95,61 @@ static gboolean MessageHandler(GstBus * bus, GstMessage * msg, gpointer user_dat
       break;
 
     case GST_MESSAGE_STATE_CHANGED:
-      // We aren't curious about these spams
-      g_print("State change received from element %s:\n{ %s }\n",
-              GST_OBJECT_NAME (msg->src),
-              gst_structure_to_string(gst_message_get_structure(msg)));
+//      g_print("State change received from element %s:\n{ %s }\n",
+//              GST_OBJECT_NAME (msg->src),
+//              gst_structure_to_string(gst_message_get_structure(msg)));
+
+      if (GST_IS_PIPELINE(msg->src)) {
+        gst_message_parse_state_changed (msg, NULL, &state, NULL);
+        g_print ("%s: %s\n",
+                 GST_MESSAGE_SRC_NAME(msg),
+                 gst_element_state_get_name (state));
+      }
       break;
 
     default:
-      // Ignore also these for now
-      g_print("Message type %s received from element %s:\n{ %s }\n",
-              GST_MESSAGE_TYPE_NAME(msg),
-              GST_OBJECT_NAME (msg->src),
-              gst_structure_to_string(gst_message_get_structure(msg)));
+//      g_print("Message type %s received from element %s:\n{ %s }\n",
+//              GST_MESSAGE_TYPE_NAME(msg),
+//              GST_OBJECT_NAME (msg->src),
+//              gst_structure_to_string(gst_message_get_structure(msg)));
       break;
   }
+  return TRUE;
 }
 
 /* Process keyboard input */
 static gboolean HandleKeyboard (GIOChannel *source, GIOCondition cond, gpointer *data) {
-  gchar *str = NULL;
+  gchar *str;
 
   if (g_io_channel_read_line (source, &str, NULL, NULL, NULL) != G_IO_STATUS_NORMAL) {
     return TRUE;
   }
 
   switch (g_ascii_tolower (str[0])) {
-    case 'p':
-      //data->playing = !data->playing;
-      //gst_element_set_state (data->pipeline, data->playing ? GST_STATE_PLAYING : GST_STATE_PAUSED);
-      g_print ("Setting state to %s\n", "LOFASZ"); //data->playing ? "PLAYING" : "PAUSE");
+
+    case '[':
+      gst_element_set_state (main_pipe, GST_STATE_PAUSED);
+      g_print ("PAUSE\n");
       break;
+
+    case ']':
+      gst_element_set_state (main_pipe, GST_STATE_PLAYING);
+      g_print ("PLAYING\n");
+      break;
+
     case 'q':
       Stop();
       break;
+
     default:
       break;
   }
 
-  g_free (str);
+  g_free(str);
 
   return TRUE;
 }
+
 
 int main(int argc, char *argv[]) {
 
@@ -187,8 +173,8 @@ int main(int argc, char *argv[]) {
 
   // create our pipes
   main_pipe = gst_pipeline_new("main_pipe");
-  rtsp_pipe[0] = gst_pipeline_new("h264_encoder_pipe");
-  rtsp_pipe[1] = gst_pipeline_new("theora_encoder_pipe");
+  rtsp_pipe[0] = gst_pipeline_new("h264_pipe");
+  rtsp_pipe[1] = gst_pipeline_new("theora_pipe");
 
   if (!main_pipe || !rtsp_pipe[0] || !rtsp_pipe[1]) {
     g_printerr("Error creating pipes!\n");
@@ -233,15 +219,15 @@ int main(int argc, char *argv[]) {
   b0_convert = gst_element_factory_make ("videoconvert", "b0_convert");
   b0_sink = gst_element_factory_make ("aasink", "b0_sink");
   if ( !b0_convert || !b0_sink ) {
-    g_printerr ("Not all elements could be created in Tee1.\n");
+    g_printerr ("Not all elements could be created in Branch0(aasink).\n");
     return -1;
   }
 
 
   b1_scale = gst_element_factory_make ("videoscale", "b1_scale");
   b1_videorate = gst_element_factory_make ("videorate", "b1_videorate");
-  b1_vaapiproc = gst_element_factory_make ("vaapipostproc", "b1_vaapiproc");
-  b1_vaapienc = gst_element_factory_make ("vaapih264enc", "b1_vaapienc");
+  b1_vaapiproc = gst_element_factory_make ("videoconvert", "b1_vaapiproc");
+  b1_vaapienc = gst_element_factory_make ("x264enc", "b1_vaapienc");
   b1_pay = gst_element_factory_make ("rtph264pay", "pay0");
   if ( !b1_scale || !b1_videorate || !b1_vaapiproc || !b1_vaapienc || !b1_pay ) {
     g_printerr ("Not all elements could be created in Branch1(RTSP, h264).\n");
@@ -377,8 +363,8 @@ int main(int argc, char *argv[]) {
 
   server->Start();
 
-  // attach bus to the pipe
-  GstBus *main_bus = gst_element_get_bus (main_pipe);
+  // attach messagehandler
+  GstBus *main_bus  = gst_pipeline_get_bus (GST_PIPELINE (main_pipe));
   msg_watch = gst_bus_add_watch (main_bus, MessageHandler, NULL);
   gst_object_unref (main_bus);
 
@@ -390,17 +376,13 @@ int main(int argc, char *argv[]) {
 #endif
   g_io_add_watch (io_stdin, G_IO_IN, (GIOFunc)HandleKeyboard, NULL);
 
-  //g_object_set (main_pipe, "message-forward", TRUE, NULL);
+  g_object_set (main_pipe, "message-forward", TRUE, NULL);
 
   // Start playing
   if (gst_element_set_state (main_pipe, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
     g_printerr ("Unable to set the main pipeline to the playing state.\n");
     Stop();
   }
-
-//  GstState enc_264_state, enc_theora_state = GST_STATE_VOID_PENDING;
-//  printStateIfChanged(b1_vaapienc, enc_264_state);
-//  printStateIfChanged(b2_theoraenc, enc_theora_state);
 
   // Create a GLib Main Loop and set it to run
   main_loop = g_main_loop_new (NULL, FALSE);

@@ -161,6 +161,8 @@ RtspServer::CreateMediaPipe(GstRTSPMediaFactory *factory, GstRTSPMedia *media) {
   gst_rtsp_media_set_reusable(media, TRUE);
   g_print("RTSP Media #%ld is reusable.\n", index);
 
+  g_signal_connect (media, "new-state", G_CALLBACK(StateChange), NULL);
+
   return pipeline;
 }
 
@@ -173,6 +175,14 @@ RtspServer::SessionPoolTimeout(GstRTSPServer *server)
   g_object_unref (pool);
 
   return TRUE;
+}
+
+void
+RtspServer::StateChange(GstRTSPMedia *media, gint arg1, gpointer user_data) {
+  GstElement *element = gst_rtsp_media_get_element(media);
+  GstState state;
+  gst_element_get_state(element, &state, NULL, 0);
+  g_print("%s: %s\n", gst_element_get_name(element), gst_element_state_get_name(state));
 }
 
 G_DEFINE_TYPE (TestRTSPMediaFactory, test_rtsp_media_factory,
