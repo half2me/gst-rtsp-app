@@ -46,7 +46,7 @@ RtspServer::ThreadLoopFunc(gpointer data) {
 }
 
 gboolean
-RtspServer::Init() {
+RtspServer::Start() {
 
   g_print ("RTSP Server init...\n");
 
@@ -66,7 +66,7 @@ RtspServer::Init() {
 }
 
 void
-RtspServer::UnInit()
+RtspServer::Stop()
 {
   g_print("Stopping RTSP Server\n");
   g_thread_join(gst_rtsp_thread);
@@ -81,20 +81,20 @@ RtspServer::UnInit()
 
 gboolean
 RtspServer::ConnectPipe(
-  GstElement* pipe_to_use,
-  GstElement* pipe_to_connect,
+  GstElement* main_pipe,
   GstElement* src_end_point,
+  GstElement* rtsp_pipe,
   GstElement* dst_start_point
 )
 {
-  if (!GST_IS_PIPELINE(pipe_to_use)) {
+  if (!GST_IS_PIPELINE(rtsp_pipe)) {
     return FALSE;
   }
   if (pipe_count >= MAX_RTSP_PIPES) {
     return FALSE;
   }
 
-  rtsp_pipes[pipe_count] = pipe_to_use;
+  rtsp_pipes[pipe_count] = rtsp_pipe;
 
   factory[pipe_count] = (GstRTSPMediaFactory*)g_object_new (TEST_TYPE_RTSP_MEDIA_FACTORY, NULL);
   mounts[pipe_count] = gst_rtsp_server_get_mount_points (gst_rtsp_server);
@@ -128,8 +128,8 @@ RtspServer::ConnectPipe(
   g_object_set(intersink[pipe_count], "channel", buf, NULL);
   g_object_set(intersrc[pipe_count], "channel", buf, NULL);
 
-  gst_bin_add ( GST_BIN (pipe_to_connect), intersink[pipe_count]);
-  gst_bin_add ( GST_BIN (pipe_to_use), intersrc[pipe_count]);
+  gst_bin_add ( GST_BIN (main_pipe), intersink[pipe_count]);
+  gst_bin_add ( GST_BIN (rtsp_pipe), intersrc[pipe_count]);
 
   // link the portals
   if (!gst_element_link(intersrc[pipe_count], dst_start_point))
@@ -160,16 +160,16 @@ GstElement *
 RtspServer::CreateMediaPipe(GstRTSPMediaFactory *factory, GstRTSPMedia *media) {
 
   if (!gst_rtsp_media_factory_get_launch(factory)) {
-
+    g_critical("Error creating media pipe!\n");
+    return NULL;
   }
 
-  GstElement *pipeline;
   char *ptr;
   long index = strtol(gst_rtsp_media_factory_get_launch(factory), &ptr, 2);
   char buf[16];
   sprintf(buf, "ext-pipe%ld", index);
 
-  pipeline = gst_pipeline_new (buf);
+  GstElement *pipeline = gst_pipeline_new (buf);;
   gst_rtsp_media_take_pipeline (media, GST_PIPELINE_CAST (pipeline));
 
   // This way the media will not be reinitialized - our created pipe is not lost

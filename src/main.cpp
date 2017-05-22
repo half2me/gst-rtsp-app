@@ -38,6 +38,34 @@ gboolean LinkToTee(GstElement* tee, GstElement* element){
 
 }
 
+void printStateIfChanged(GstElement* element, GstState &reference_state) {
+  GstState curr_state;
+  gst_element_get_state(element, &curr_state, NULL, 100000);
+  if (curr_state != reference_state) {
+    char buf[32];
+    switch (curr_state) {
+      case GST_STATE_NULL:
+        sprintf(buf, "GST_STATE_NULL");
+        break;
+      case GST_STATE_READY:
+        sprintf(buf, "GST_STATE_READY");
+        break;
+      case GST_STATE_PAUSED:
+        sprintf(buf, "GST_STATE_PAUSED");
+        break;
+      case GST_STATE_PLAYING:
+        sprintf(buf, "GST_STATE_PLAYING");
+        break;
+      default:
+        sprintf(buf, "GST_STATE_VOID_PENDING");
+        break;
+    }
+    g_print("%s state: %s\n", gst_element_get_name(element), buf);
+    reference_state = curr_state;
+  }
+}
+
+
 int main(int argc, char *argv[]) {
 
   RtspServer server;
@@ -48,7 +76,7 @@ int main(int argc, char *argv[]) {
   // Branches:
   GstElement *b0_convert, *b0_sink;
   GstElement *b1_scale, *b1_videorate, *b1_vaapiproc, *b1_vaapienc, *b1_pay;
-  GstElement *b2_scale, *b2_videorate, *b2_vaapiproc, *b2_vaapienc, *b2_pay;
+  GstElement *b2_scale, *b2_videorate, *b2_videoconv, *b2_theoraenc, *b2_pay;
 
   // create our pipes
   GstElement *main_pipe = NULL, *rtsp_pipe[2] = {};
@@ -69,7 +97,7 @@ int main(int argc, char *argv[]) {
   rtsp_pipe[0] = gst_pipeline_new("h264_encoder_pipe");
   rtsp_pipe[1] = gst_pipeline_new("theora_encoder_pipe");
 
-  if (!main_pipe || !rtsp_pipe[0]) {
+  if (!main_pipe || !rtsp_pipe[0] || !rtsp_pipe[1]) {
     g_printerr("Error creating pipes!\n");
     exit(1);
     // TODO ERROR UNREF
@@ -85,8 +113,8 @@ int main(int argc, char *argv[]) {
 
   GstCaps *h264_caps = gst_caps_new_simple(
     "video/x-raw",
-    "width", G_TYPE_INT, 320,
-    "height", G_TYPE_INT, 240,
+    "width", G_TYPE_INT, 640,
+    "height", G_TYPE_INT, 480,
     "framerate", GST_TYPE_FRACTION, 30, 1,
     NULL
   );
@@ -95,7 +123,7 @@ int main(int argc, char *argv[]) {
       "video/x-raw",
       "width", G_TYPE_INT, 640,
       "height", G_TYPE_INT, 480,
-      "framerate", GST_TYPE_FRACTION, 25, 2,
+      "framerate", GST_TYPE_FRACTION, 50, 2,
       NULL
   );
 
@@ -110,7 +138,7 @@ int main(int argc, char *argv[]) {
   }
 
   b0_convert = gst_element_factory_make ("videoconvert", "b0_convert");
-  b0_sink = gst_element_factory_make ("aasink", "b0_sink");
+  b0_sink = gst_element_factory_make ("xvimagesink", "b0_sink");
   if ( !b0_convert || !b0_sink ) {
     g_printerr ("Not all elements could be created in Tee1.\n");
     return -1;
@@ -119,8 +147,8 @@ int main(int argc, char *argv[]) {
 
   b1_scale = gst_element_factory_make ("videoscale", "b1_scale");
   b1_videorate = gst_element_factory_make ("videorate", "b1_videorate");
-  b1_vaapiproc = gst_element_factory_make ("videoconvert", "b1_vaapiproc");
-  b1_vaapienc = gst_element_factory_make ("x264enc", "b1_vaapienc");
+  b1_vaapiproc = gst_element_factory_make ("vaapipostproc", "b1_vaapiproc");
+  b1_vaapienc = gst_element_factory_make ("vaapih264enc", "b1_vaapienc");
   b1_pay = gst_element_factory_make ("rtph264pay", "pay0");
   if ( !b1_scale || !b1_videorate || !b1_vaapiproc || !b1_vaapienc || !b1_pay ) {
     g_printerr ("Not all elements could be created in Branch1(RTSP, h264).\n");
@@ -129,10 +157,10 @@ int main(int argc, char *argv[]) {
 
   b2_scale = gst_element_factory_make ("videoscale", "b2_scale");
   b2_videorate = gst_element_factory_make ("videorate", "b2_videorate");
-  b2_vaapiproc = gst_element_factory_make ("videoconvert", "b2_vaapiproc");
-  b2_vaapienc = gst_element_factory_make ("theoraenc", "b2_vaapienc");
-  b2_pay = gst_element_factory_make ("rtptheorapay", "pay1");
-  if ( !b2_scale || !b2_videorate || !b2_vaapiproc || !b2_vaapienc || !b2_pay ) {
+  b2_videoconv = gst_element_factory_make ("videoconvert", "b2_videoconv");
+  b2_theoraenc = gst_element_factory_make ("theoraenc", "b2_theoraenc");
+  b2_pay = gst_element_factory_make ("rtptheorapay", "pay0");
+  if ( !b2_scale || !b2_videorate || !b2_videoconv || !b2_theoraenc || !b2_pay ) {
     g_printerr ("Not all elements could be created in Branch2(RTSP, theora).\n");
     return -1;
   }
@@ -143,7 +171,7 @@ int main(int argc, char *argv[]) {
   g_object_set (b1_pay, "pt", 96, NULL);
   g_object_set (b2_pay, "pt", 96, NULL);
   //g_object_set (source2, "pattern", 18, NULL);
-  //g_object_set (b0_sink, "driver", "curses", NULL);
+  //g_object_set (b0_sink, "video-sink", "aasink", NULL);
 
 
   // Useful tempvars in C
@@ -188,7 +216,7 @@ int main(int argc, char *argv[]) {
 
   gst_bin_add_many (
     GST_BIN (rtsp_pipe[1]),
-    b2_scale, b2_videorate, b2_vaapiproc, b2_vaapienc, b2_pay,
+    b2_scale, b2_videorate, b2_videoconv, b2_theoraenc, b2_pay,
     NULL);
 
   // Link pipelines
@@ -214,12 +242,6 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  // Connect second branch to the rtsp pipe
-  if (!server.ConnectPipe(rtsp_pipe[0], main_pipe, valve[1], b1_scale)) {
-    g_critical ("Unable to connect rtsp pipe of 264 encoder.");
-    exit(1);
-  }
-
   // Link the rtsp branch of the second branch
   if(!gst_element_link_many(b1_scale, b1_videorate, NULL)
      || !gst_element_link_filtered(b1_videorate, b1_vaapiproc, h264_caps)
@@ -235,26 +257,32 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  // Connect third branch to the rtsp pipe
-  if (!server.ConnectPipe(rtsp_pipe[1], main_pipe, valve[2], b2_scale)) {
-    g_critical ("Unable to connect rtsp pipe of theora encoder.");
-    exit(1);
-  }
-
   // Link the rtsp branch of the third branch
-  if(!gst_element_link_many(b2_scale, b2_videorate, NULL)
-     || !gst_element_link_filtered(b2_videorate, b2_vaapiproc, theora_caps)
-     || !gst_element_link_many(b2_vaapiproc, b2_vaapienc, b2_pay, NULL))
+  if(!gst_element_link_many(b2_scale, b2_videorate, b2_videoconv, NULL)
+     || !gst_element_link_filtered(b2_videoconv, b2_theoraenc, theora_caps)
+     || !gst_element_link(b2_theoraenc, b2_pay))
   {
     g_critical ("Unable to link rtsp-theora.");
     exit(1);
   }
 
-  server.Init();
+  // Connect second branch to the rtsp pipe
+  if (!server.ConnectPipe(main_pipe, valve[1], rtsp_pipe[0], b1_scale)) {
+    g_critical ("Unable to connect rtsp pipe of 264 encoder.");
+    exit(1);
+  }
+
+  // Connect third branch to the rtsp pipe
+  if (!server.ConnectPipe(main_pipe, valve[2], rtsp_pipe[1], b2_scale)) {
+    g_critical ("Unable to connect rtsp pipe of theora encoder.");
+    exit(1);
+  }
+
+  server.Start();
 
   // attach bus to the pipe
   main_bus = gst_element_get_bus (main_pipe);
-  GstState encoder_state, encoder_old_state = GST_STATE_VOID_PENDING;
+  GstState enc_264_state, enc_theora_state = GST_STATE_VOID_PENDING;
 
   // Start playing
   if (gst_element_set_state (main_pipe, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
@@ -266,61 +294,60 @@ int main(int argc, char *argv[]) {
   gboolean exit = FALSE;
   while (!exit) {
 
-    gst_element_get_state (b1_vaapienc, &encoder_state, NULL, GST_CLOCK_TIME_NONE);
-    if (encoder_old_state != encoder_state) {
-      switch (encoder_state) {
-        case GST_STATE_NULL:
-          sprintf(buf, "GST_STATE_NULL");
-          break;
-        case GST_STATE_READY:
-          sprintf(buf, "GST_STATE_READY");
-          break;
-        case GST_STATE_PAUSED:
-          sprintf(buf, "GST_STATE_PAUSED");
-          break;
-        case GST_STATE_PLAYING:
-          sprintf(buf, "GST_STATE_PLAYING");
-          break;
-        default:
-          sprintf(buf, "GST_STATE_VOID_PENDING");
-          break;
-      }
-      g_print("Encoder state: %s\n", buf);
-      encoder_old_state = encoder_state;
-    }
+    // Keep an eye on encoders
+    printStateIfChanged(b1_vaapienc, enc_264_state);
+    printStateIfChanged(b2_theoraenc, enc_theora_state);
 
     // Check messages on each pipe
-    GstMessage *msg = gst_bus_timed_pop(main_bus, 10000000);
+    GstMessage *msg = gst_bus_timed_pop(main_bus, 100000);
     if (!msg) continue;
 
     GError *err;
     gchar *debug_info;
 
     switch (GST_MESSAGE_TYPE (msg)) {
+
       case GST_MESSAGE_ERROR:
         gst_message_parse_error(msg, &err, &debug_info);
-        g_printerr("Error received from element %s: %s\n", GST_OBJECT_NAME (msg->src), err->message);
-        g_printerr("Debugging information: %s\n", debug_info ? debug_info : "none");
+        exit = TRUE;
+        goto printMessage;
+      case GST_MESSAGE_WARNING:
+        gst_message_parse_warning(msg, &err, &debug_info);
+        goto printMessage;
+      case GST_MESSAGE_INFO:
+        gst_message_parse_info(msg, &err, &debug_info);
+        goto printMessage;
+
+      printMessage:
+        g_print("Message received from element %s: %s\n", GST_OBJECT_NAME (msg->src), err->message);
+        g_print("Debugging information: %s\n", debug_info ? debug_info : "none");
         g_clear_error(&err);
         g_free(debug_info);
-        exit = TRUE;
         break;
+
       case GST_MESSAGE_EOS:
         g_print("End-Of-Stream reached.\n");
-        exit = TRUE;
         break;
-      case GST_MESSAGE_STATE_CHANGED: {
 
-        break;
-      }
+      case GST_MESSAGE_STATE_CHANGED:
+        /* We aren't curious about these spams
+        g_print("State change received from element %s:\n{ %s }\n",
+                GST_OBJECT_NAME (msg->src),
+                gst_structure_to_string(gst_message_get_structure(msg)));
+        */break;
+
       default:
-        //g_printerr("Unexpected message received.\n");
-        break;
+        /* Ignore also these for now
+        g_print("Message type %s received from element %s:\n{ %s }\n",
+                GST_MESSAGE_TYPE_NAME(msg),
+                GST_OBJECT_NAME (msg->src),
+                gst_structure_to_string(gst_message_get_structure(msg)));
+        */break;
     }
     gst_message_unref(msg);
   }
 
-  server.UnInit();
+  server.Stop();
 
   /* Free resources */
   gst_element_set_state (main_pipe, GST_STATE_NULL);

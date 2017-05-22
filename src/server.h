@@ -14,14 +14,14 @@ public:
   RtspServer();
   ~RtspServer();
 
-  gboolean Init();
+  gboolean Start();
 
-  void UnInit();
+  void Stop();
 
   gboolean ConnectPipe(
-    GstElement* pipe_to_use,
-    GstElement* pipe_to_connect,
+    GstElement* main_pipe,
     GstElement* src_end_point,
+    GstElement* rtsp_pipe,
     GstElement* dst_start_point
   );
   
