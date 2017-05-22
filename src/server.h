@@ -9,8 +9,8 @@
 #define MAX_RTSP_PIPES 8
 
 class RtspServer {
-public:
 
+public:
   RtspServer();
   ~RtspServer();
 
@@ -24,28 +24,27 @@ public:
     GstElement* rtsp_pipe,
     GstElement* dst_start_point
   );
-  
-
-  // Override default rtsp gst_rtsp_server mediafactory implementation
-  static GstElement * ImportPipeline (GstRTSPMediaFactory * factory, const GstRTSPUrl * url);
-  static GstElement * CreateMediaPipe(GstRTSPMediaFactory *factory, GstRTSPMedia *media);
-
-  static GstElement* rtsp_pipes[MAX_RTSP_PIPES];
 
 private:
-
-  // this timeout is periodically run to clean up the expired rtsp sessions from the pool.
-  static gboolean SessionPoolTimeout(GstRTSPServer *server);
-
-  static gpointer ThreadLoopFunc(gpointer data);
-
   GstRTSPServer *gst_rtsp_server;
-  GThread *gst_rtsp_thread;
   unsigned int pipe_count;
   GstRTSPMountPoints *mounts[MAX_RTSP_PIPES];
   GstRTSPMediaFactory *factory[MAX_RTSP_PIPES];
   GstElement *intersink[MAX_RTSP_PIPES], *intersrc[MAX_RTSP_PIPES];
 
+
+
+  // Override default rtsp gst_rtsp_server mediafactory implementation
+  // -----------------------------------------------------------------
+
+public:
+  static GstElement * ImportPipeline (GstRTSPMediaFactory * factory, const GstRTSPUrl * url);
+  static GstElement * CreateMediaPipe(GstRTSPMediaFactory *factory, GstRTSPMedia *media);
+  static GstElement* rtsp_pipes[MAX_RTSP_PIPES];
+
+private:
+  // this timeout is periodically run to clean up the expired rtsp sessions from the pool.
+  static gboolean SessionPoolTimeout(GstRTSPServer *server);
 };
 
 #endif //GST_RTSP_APP_SERVER_H

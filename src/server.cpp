@@ -24,8 +24,7 @@ struct TestRTSPMediaFactory {
 GstElement* RtspServer::rtsp_pipes[MAX_RTSP_PIPES] = {};
 
 RtspServer::RtspServer() {
-  // TODO NULL init each f*ckin element
-  gst_rtsp_thread = NULL;
+
   pipe_count = 0;
 
   // create a tweaked gst_rtsp_server instance
@@ -36,31 +35,18 @@ RtspServer::RtspServer() {
 RtspServer::~RtspServer() {
 }
 
-gpointer
-RtspServer::ThreadLoopFunc(gpointer data) {
-  GMainLoop *loop = g_main_loop_new(NULL, FALSE);
-  g_print("Server thread started.\n");
-  g_main_loop_run(loop);
-  g_print("Server thread stopped.\n");
-  g_main_loop_unref(loop);
-}
-
 gboolean
 RtspServer::Start() {
 
   g_print ("RTSP Server init...\n");
 
-  /* attach the gst_rtsp_server to the default maincontext */
+  // add a timeout for the session cleanup
+  g_timeout_add_seconds(2, (GSourceFunc) SessionPoolTimeout, gst_rtsp_server);
+
   if (gst_rtsp_server_attach (gst_rtsp_server, NULL) == 0) {
     g_print ("Failed to attach the server\n");
     return FALSE;
   }
-
-  // add a timeout for the session cleanup
-  g_timeout_add_seconds(2, (GSourceFunc) SessionPoolTimeout, gst_rtsp_server);
-
-  // Start thread for rtsp gst_rtsp_server
-  gst_rtsp_thread = g_thread_new("rtsp-thread", ThreadLoopFunc, NULL);
 
   return TRUE;
 }
@@ -69,7 +55,6 @@ void
 RtspServer::Stop()
 {
   g_print("Stopping RTSP Server\n");
-  g_thread_join(gst_rtsp_thread);
 
   for (int for_i=0; for_i<MAX_RTSP_PIPES; for_i++) {
     if (rtsp_pipes[for_i]) {
