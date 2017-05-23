@@ -324,19 +324,7 @@ int main(int argc, char *argv[]) {
   // Create the server
   // -----------------
   server = new RtspServer();
-
-  // Connect second branch to the rtsp pipe
-  if (!server->ConnectPipe(topology->GetPipe("Pipe-main"), valve[1], topology->GetPipe("Pipe-h264"), b1_scale)) {
-    g_critical ("Unable to connect rtsp pipe of 264 encoder.");
-    Stop();
-  }
-
-  // Connect third branch to the rtsp pipe
-  if (!server->ConnectPipe(topology->GetPipe("Pipe-main"), valve[2], topology->GetPipe("Pipe-theora"), b2_scale)) {
-    g_critical ("Unable to connect rtsp pipe of theora encoder.");
-    Stop();
-  }
-
+  server->RegisterRtspPipes(NULL);
   server->Start();
 
   // attach messagehandler
@@ -355,7 +343,9 @@ int main(int argc, char *argv[]) {
   //g_object_set (main_pipe, "message-forward", TRUE, NULL);
 
   // Start playing
-  if (gst_element_set_state (topology->GetPipe("Pipe-main"), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+  if (gst_element_set_state(
+    topology->GetPipe("Pipe-main"), GST_STATE_PLAYING)
+      == GST_STATE_CHANGE_FAILURE) {
     g_printerr ("Unable to set the main pipeline to the playing state.\n");
     Stop();
   }

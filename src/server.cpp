@@ -5,6 +5,7 @@
 #include <gst/rtsp-server/rtsp-media-factory.h>
 #include <stdlib.h>
 #include <cstdio>
+
 #include "server.h"
 
 #define TEST_TYPE_RTSP_MEDIA_FACTORY      (test_rtsp_media_factory_get_type ())
@@ -21,17 +22,16 @@ struct TestRTSPMediaFactory {
   GstRTSPMediaFactory parent;
 };
 
-GstElement* RtspServer::rtsp_pipes[MAX_RTSP_PIPES] = {};
+std::vector<GstElement*> RtspServer::rtsp_pipes = std::vector<GstElement*>();
 
-RtspServer::RtspServer() {
-
-  pipe_count = 0;
-
-  gst_rtsp_server = gst_rtsp_server_new ();
+RtspServer::RtspServer()
+{
+  gst_rtsp_server = gst_rtsp_server_new();
   gst_rtsp_server_set_service(gst_rtsp_server, "8554");
 }
 
 RtspServer::~RtspServer() {
+  // TODO Guess what...
 }
 
 gboolean
@@ -55,74 +55,43 @@ RtspServer::Stop()
 {
   g_print("Stopping RTSP Server\n");
 
-  for (int for_i=0; for_i<MAX_RTSP_PIPES; for_i++) {
-    if (rtsp_pipes[for_i]) {
-      gst_object_unref (rtsp_pipes[for_i]);
-    }
-  }
-
+// TODO Probably RTSP Pipelines are destroyed by gst_server, but who knows...
+//  for (int for_i=0; for_i<MAX_RTSP_PIPES; for_i++) {
+//    if (rtsp_pipes[for_i]) {
+//      gst_object_unref (rtsp_pipes[for_i]);
+//    }
+//  }
 }
 
-gboolean
-RtspServer::ConnectPipe(
-  GstElement* main_pipe,
-  GstElement* src_end_point,
-  GstElement* rtsp_pipe,
-  GstElement* dst_start_point
-)
+gboolean RtspServer::RegisterRtspPipes(const std::vector<GstElement*>& pipes)
 {
-  if (!GST_IS_PIPELINE(rtsp_pipe)) {
-    return FALSE;
-  }
-  if (pipe_count >= MAX_RTSP_PIPES) {
-    return FALSE;
-  }
-
-  rtsp_pipes[pipe_count] = rtsp_pipe;
   char buf[16];
-
-  // create gateway pairs
-  sprintf(buf, "intersink%d", pipe_count);
-  intersink[pipe_count] = gst_element_factory_make ("intervideosink", buf);
-  sprintf(buf, "intersrc%d", pipe_count);
-  intersrc[pipe_count] = gst_element_factory_make ("intervideosrc", buf);
-  if (!intersink[pipe_count] || !intersrc[pipe_count]) {
-    g_printerr("Error creating intervideo pair %d.\n", pipe_count);
-    return FALSE;
-  }
-
-  sprintf(buf, "gateway%d", pipe_count);
-  g_object_set(intersink[pipe_count], "channel", buf, NULL);
-  g_object_set(intersrc[pipe_count], "channel", buf, NULL);
-
-  gst_bin_add ( GST_BIN (main_pipe), intersink[pipe_count]);
-  gst_bin_add ( GST_BIN (rtsp_pipe), intersrc[pipe_count]);
-
-  // link the portals
-  if (!gst_element_link(src_end_point, intersink[pipe_count])
-      || !gst_element_link(intersrc[pipe_count], dst_start_point))
+  unsigned long n_pipes = pipes.size();
+  for (int i = 0; i < n_pipes; i++)
   {
-    return FALSE;
+    GstRTSPMountPoints *mount;
+    GstRTSPMediaFactory *factory;
+
+    factory = (GstRTSPMediaFactory *) g_object_new(TEST_TYPE_RTSP_MEDIA_FACTORY, NULL);
+    mount = gst_rtsp_server_get_mount_points(gst_rtsp_server);
+
+    // use the launch string for the mediafactory to identify pipe index
+    sprintf(buf, "%d", i);
+    gst_rtsp_media_factory_set_launch(factory, buf);
+
+    // Set this shitty pipeline to shared between all the fucked up clients so they won't mess up the driver's state
+    gst_rtsp_media_factory_set_shared(factory, TRUE);
+
+    // attach the test factory to the /testN url
+    sprintf(buf, "/test%d", i);
+    gst_rtsp_mount_points_add_factory(mount, buf, factory);
+
+    // don't need the ref to the mapper anymore
+    g_object_unref(mount);
+
+    rtsp_pipes.push_back(pipes[i]);
   }
 
-  factory[pipe_count] = (GstRTSPMediaFactory*)g_object_new (TEST_TYPE_RTSP_MEDIA_FACTORY, NULL);
-  mounts[pipe_count] = gst_rtsp_server_get_mount_points (gst_rtsp_server);
-
-  // use the launch string for the mediafactory to identify pipe index
-  sprintf(buf, "%d", pipe_count);
-  gst_rtsp_media_factory_set_launch (factory[pipe_count], buf);
-
-  // Set this shitty pipeline to shared between all the fucked up clients so they won't mess up the driver's state
-  gst_rtsp_media_factory_set_shared (factory[pipe_count], TRUE);
-
-  // attach the test factory to the /testN url
-  sprintf(buf, "/test%d", pipe_count);
-  gst_rtsp_mount_points_add_factory (mounts[pipe_count], buf, factory[pipe_count]);
-
-  // don't need the ref to the mapper anymore
-  g_object_unref (mounts[pipe_count]);
-
-  pipe_count++;
 
   return TRUE;
 }
