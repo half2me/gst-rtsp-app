@@ -27,7 +27,6 @@ RtspServer::RtspServer() {
 
   pipe_count = 0;
 
-  // create a tweaked gst_rtsp_server instance
   gst_rtsp_server = gst_rtsp_server_new ();
   gst_rtsp_server_set_service(gst_rtsp_server, "8554");
 }
@@ -80,24 +79,7 @@ RtspServer::ConnectPipe(
   }
 
   rtsp_pipes[pipe_count] = rtsp_pipe;
-
-  factory[pipe_count] = (GstRTSPMediaFactory*)g_object_new (TEST_TYPE_RTSP_MEDIA_FACTORY, NULL);
-  mounts[pipe_count] = gst_rtsp_server_get_mount_points (gst_rtsp_server);
-
-  // use the launch string to identify pipe index
   char buf[16];
-  sprintf(buf, "%d", pipe_count);
-  gst_rtsp_media_factory_set_launch (factory[pipe_count], buf);
-
-  // Set this shitty pipeline to shared between all the fucked up clients so they won't mess up the driver's state
-  gst_rtsp_media_factory_set_shared (factory[pipe_count], TRUE);
-
-  // attach the test factory to the /testN url
-  sprintf(buf, "/test%d", pipe_count);
-  gst_rtsp_mount_points_add_factory (mounts[pipe_count], buf, factory[pipe_count]);
-
-  // don't need the ref to the mapper anymore
-  g_object_unref (mounts[pipe_count]);
 
   // create gateway pairs
   sprintf(buf, "intersink%d", pipe_count);
@@ -117,14 +99,28 @@ RtspServer::ConnectPipe(
   gst_bin_add ( GST_BIN (rtsp_pipe), intersrc[pipe_count]);
 
   // link the portals
-  if (!gst_element_link(intersrc[pipe_count], dst_start_point))
+  if (!gst_element_link(src_end_point, intersink[pipe_count])
+      || !gst_element_link(intersrc[pipe_count], dst_start_point))
   {
     return FALSE;
   }
-  if (!gst_element_link(src_end_point, intersink[pipe_count]))
-  {
-    return FALSE;
-  }
+
+  factory[pipe_count] = (GstRTSPMediaFactory*)g_object_new (TEST_TYPE_RTSP_MEDIA_FACTORY, NULL);
+  mounts[pipe_count] = gst_rtsp_server_get_mount_points (gst_rtsp_server);
+
+  // use the launch string for the mediafactory to identify pipe index
+  sprintf(buf, "%d", pipe_count);
+  gst_rtsp_media_factory_set_launch (factory[pipe_count], buf);
+
+  // Set this shitty pipeline to shared between all the fucked up clients so they won't mess up the driver's state
+  gst_rtsp_media_factory_set_shared (factory[pipe_count], TRUE);
+
+  // attach the test factory to the /testN url
+  sprintf(buf, "/test%d", pipe_count);
+  gst_rtsp_mount_points_add_factory (mounts[pipe_count], buf, factory[pipe_count]);
+
+  // don't need the ref to the mapper anymore
+  g_object_unref (mounts[pipe_count]);
 
   pipe_count++;
 

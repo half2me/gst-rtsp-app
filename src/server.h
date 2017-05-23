@@ -5,8 +5,9 @@
 #ifndef GST_RTSP_APP_SERVER_H
 #define GST_RTSP_APP_SERVER_H
 
+#include <gst/rtsp-server/rtsp-server.h>
 
-#define MAX_RTSP_PIPES 8
+#define MAX_RTSP_PIPES 4
 
 class RtspServer {
 
@@ -18,6 +19,7 @@ public:
 
   void Stop();
 
+  // Convert pipe to use with Gst RTSP Server
   gboolean ConnectPipe(
     GstElement* main_pipe,
     GstElement* src_end_point,
@@ -34,8 +36,8 @@ private:
 
 
 
-  // Override default rtsp gst_rtsp_server mediafactory implementation
-  // -----------------------------------------------------------------
+// Override default rtsp gst_rtsp_server mediafactory implementation
+// -----------------------------------------------------------------
 
 public:
   static GstElement * ImportPipeline (GstRTSPMediaFactory * factory, const GstRTSPUrl * url);

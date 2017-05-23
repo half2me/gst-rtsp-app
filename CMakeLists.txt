@@ -28,6 +28,7 @@ target_sources(${CMAKE_PROJECT_NAME}
   PRIVATE
     src/main.cpp
     src/server.cpp
+    src/topology.cpp
 )
 
 # Tools

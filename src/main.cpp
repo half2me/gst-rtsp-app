@@ -2,18 +2,18 @@
 // Created by pszekeres on 2017.05.18..
 //
 #include <gst/gst.h>
-#include <gst/rtsp-server/rtsp-server.h>
 
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "server.h"
+#include "topology.h"
 
 GMainLoop *main_loop = NULL;
 guint msg_watch = 0;
 GIOChannel *io_stdin = NULL;
 RtspServer *server = NULL;
-GstElement *main_pipe = NULL, *rtsp_pipe[2] = {};
+Topology *topology = NULL;
 
 void Stop() {
 
@@ -23,48 +23,24 @@ void Stop() {
   if (io_stdin)
     g_io_channel_unref (io_stdin);
 
-  if (server)
+  if (server) {
     server->Stop();
+    g_free(server);
+  }
 
-  if (main_pipe) {
-    gst_element_set_state (main_pipe, GST_STATE_NULL);
-    gst_object_unref (main_pipe);
+  if (topology) {
+    gst_element_set_state (topology->GetPipe("Pipe-main"), GST_STATE_NULL);
+    g_free(topology);
   }
 
   if (main_loop) {
     g_main_loop_quit(main_loop);
     g_main_loop_unref(main_loop);
   }
+
+  // TODO shut down properly
+  exit(0);
 }
-
-gboolean LinkToTee(GstElement* tee, GstElement* element){
-  // Get the source pad template of the tee element
-  GstPadTemplate *tee_src_pad_template;
-  if ( !(tee_src_pad_template = gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS (tee), "src_%u"))) {
-    g_critical ("Unable to get pad template");
-    Stop();
-  }
-
-  GstPad* tee_queue_pad, *queue_tee_pad;
-  // Obtaining request pads for the tee elements
-  tee_queue_pad = gst_element_request_pad(tee, tee_src_pad_template, NULL, NULL);
-
-  // Get sinkpad of the queue element
-  queue_tee_pad = gst_element_get_static_pad(element, "sink");
-
-  // Link the tee to the queue
-  if (gst_pad_link(tee_queue_pad, queue_tee_pad) != GST_PAD_LINK_OK) {
-    g_critical ("Tee for branch of %s could not be linked.\n", gst_element_get_name(element));
-    // TODO identify elem
-    Stop();
-  }
-
-  gst_object_unref(queue_tee_pad);
-  gst_object_unref(tee_queue_pad);
-
-  return TRUE;
-}
-
 
 static gboolean MessageHandler(GstBus * bus, GstMessage * msg, gpointer user_data) {
   GError *err;
@@ -118,7 +94,7 @@ static gboolean MessageHandler(GstBus * bus, GstMessage * msg, gpointer user_dat
 }
 
 /* Process keyboard input */
-static gboolean HandleKeyboard (GIOChannel *source, GIOCondition cond, gpointer *data) {
+static gboolean KeyboardHandler(GIOChannel *source, GIOCondition cond, gpointer *data) {
   gchar *str;
 
   if (g_io_channel_read_line (source, &str, NULL, NULL, NULL) != G_IO_STATUS_NORMAL) {
@@ -128,13 +104,11 @@ static gboolean HandleKeyboard (GIOChannel *source, GIOCondition cond, gpointer 
   switch (g_ascii_tolower (str[0])) {
 
     case '[':
-      gst_element_set_state (main_pipe, GST_STATE_PAUSED);
-      g_print ("PAUSE\n");
+      gst_element_set_state (topology->GetPipe(0), GST_STATE_PAUSED);
       break;
 
     case ']':
-      gst_element_set_state (main_pipe, GST_STATE_PLAYING);
-      g_print ("PLAYING\n");
+      gst_element_set_state (topology->GetPipe(0), GST_STATE_PLAYING);
       break;
 
     case 'q':
@@ -152,6 +126,8 @@ static gboolean HandleKeyboard (GIOChannel *source, GIOCondition cond, gpointer 
 
 
 int main(int argc, char *argv[]) {
+
+  topology = new Topology();
 
   // Tee for source pipe
   GstElement *source, *tee;
@@ -172,11 +148,11 @@ int main(int argc, char *argv[]) {
   gst_init (&argc, &argv);
 
   // create our pipes
-  main_pipe = gst_pipeline_new("main_pipe");
-  rtsp_pipe[0] = gst_pipeline_new("h264_pipe");
-  rtsp_pipe[1] = gst_pipeline_new("theora_pipe");
+  topology->InitPipe("Pipe-main");
+  topology->InitPipe("Pipe-h264");
+  topology->InitPipe("Pipe-theora");
 
-  if (!main_pipe || !rtsp_pipe[0] || !rtsp_pipe[1]) {
+  if (!topology->GetPipe("Pipe-main") || !topology->GetPipe("Pipe-h264") || !topology->GetPipe("Pipe-theora")) {
     g_printerr("Error creating pipes!\n");
     Stop();
     // TODO ERROR UNREF
@@ -226,8 +202,8 @@ int main(int argc, char *argv[]) {
 
   b1_scale = gst_element_factory_make ("videoscale", "b1_scale");
   b1_videorate = gst_element_factory_make ("videorate", "b1_videorate");
-  b1_vaapiproc = gst_element_factory_make ("videoconvert", "b1_vaapiproc");
-  b1_vaapienc = gst_element_factory_make ("x264enc", "b1_vaapienc");
+  b1_vaapiproc = gst_element_factory_make ("vaapipostproc", "b1_vaapiproc");
+  b1_vaapienc = gst_element_factory_make ("vaapih264enc", "b1_vaapienc");
   b1_pay = gst_element_factory_make ("rtph264pay", "pay0");
   if ( !b1_scale || !b1_videorate || !b1_vaapiproc || !b1_vaapienc || !b1_pay ) {
     g_printerr ("Not all elements could be created in Branch1(RTSP, h264).\n");
@@ -281,7 +257,7 @@ int main(int argc, char *argv[]) {
   // ----------------------------
 
   gst_bin_add_many (
-    GST_BIN (main_pipe),
+    GST_BIN (topology->GetPipe("Pipe-main")),
     source, tee,
     queue[0], valve[0], b0_convert, b0_sink,
     queue[1], valve[1],
@@ -289,12 +265,12 @@ int main(int argc, char *argv[]) {
     NULL);
 
   gst_bin_add_many (
-    GST_BIN (rtsp_pipe[0]),
+    GST_BIN (topology->GetPipe("Pipe-h264")),
     b1_scale, b1_videorate, b1_vaapiproc, b1_vaapienc, b1_pay,
     NULL);
 
   gst_bin_add_many (
-    GST_BIN (rtsp_pipe[1]),
+    GST_BIN (topology->GetPipe("Pipe-theora")),
     b2_scale, b2_videorate, b2_videoconv, b2_theoraenc, b2_pay,
     NULL);
 
@@ -305,9 +281,9 @@ int main(int argc, char *argv[]) {
   }
 
   // Connect branches to the tee
-  LinkToTee(tee, queue[0]);
-  LinkToTee(tee, queue[1]);
-  LinkToTee(tee, queue[2]);
+  Topology::LinkToTee(tee, queue[0]);
+  Topology::LinkToTee(tee, queue[1]);
+  Topology::LinkToTee(tee, queue[2]);
 
   // Link the first branch
   if(!gst_element_link_many(queue[0], valve[0], b0_convert, b0_sink, NULL)) {
@@ -350,13 +326,13 @@ int main(int argc, char *argv[]) {
   server = new RtspServer();
 
   // Connect second branch to the rtsp pipe
-  if (!server->ConnectPipe(main_pipe, valve[1], rtsp_pipe[0], b1_scale)) {
+  if (!server->ConnectPipe(topology->GetPipe("Pipe-main"), valve[1], topology->GetPipe("Pipe-h264"), b1_scale)) {
     g_critical ("Unable to connect rtsp pipe of 264 encoder.");
     Stop();
   }
 
   // Connect third branch to the rtsp pipe
-  if (!server->ConnectPipe(main_pipe, valve[2], rtsp_pipe[1], b2_scale)) {
+  if (!server->ConnectPipe(topology->GetPipe("Pipe-main"), valve[2], topology->GetPipe("Pipe-theora"), b2_scale)) {
     g_critical ("Unable to connect rtsp pipe of theora encoder.");
     Stop();
   }
@@ -364,7 +340,7 @@ int main(int argc, char *argv[]) {
   server->Start();
 
   // attach messagehandler
-  GstBus *main_bus  = gst_pipeline_get_bus (GST_PIPELINE (main_pipe));
+  GstBus *main_bus  = gst_pipeline_get_bus (GST_PIPELINE (topology->GetPipe("Pipe-main")));
   msg_watch = gst_bus_add_watch (main_bus, MessageHandler, NULL);
   gst_object_unref (main_bus);
 
@@ -374,12 +350,12 @@ int main(int argc, char *argv[]) {
 #else
   io_stdin = g_io_channel_unix_new (fileno (stdin));
 #endif
-  g_io_add_watch (io_stdin, G_IO_IN, (GIOFunc)HandleKeyboard, NULL);
+  g_io_add_watch(io_stdin, G_IO_IN, (GIOFunc) KeyboardHandler, NULL);
 
-  g_object_set (main_pipe, "message-forward", TRUE, NULL);
+  //g_object_set (main_pipe, "message-forward", TRUE, NULL);
 
   // Start playing
-  if (gst_element_set_state (main_pipe, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+  if (gst_element_set_state (topology->GetPipe("Pipe-main"), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
     g_printerr ("Unable to set the main pipeline to the playing state.\n");
     Stop();
   }
