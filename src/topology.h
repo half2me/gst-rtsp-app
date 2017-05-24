@@ -1,8 +1,4 @@
-//
-// Created by pszekeres on 2017.05.23..
-//
-#ifndef GST_RTSP_APP_TOPOLOGY_H
-#define GST_RTSP_APP_TOPOLOGY_H
+#pragma once
 
 #include "gst/gst.h"
 #include <string>
@@ -36,12 +32,10 @@ private:
   static gboolean LinkToTee(GstElement* tee, GstElement* element);
 
   // Converts a pipe to use with the Gst RTSP Server
-  bool ConnectRtspPipe(
-    GstElement *source_pipe,
-    GstElement *source_end_point,
-    GstElement *rtsp_pipe,
-    GstElement *rtsp_start_point
-  );
+  bool ConnectRtspPipe(GstElement *rtsp_pipe,
+                       GstElement *source_pipe,
+                       GstElement *source_end_point,
+                       GstElement *rtsp_start_point);
 
   // instances
   map<string, GstElement*> elements;
@@ -62,5 +56,3 @@ private:
   vector<tuple<string, string, GstCaps*>> raw_cap_links;
 
 };
-
-#endif //GST_RTSP_APP_TOPOLOGY_H

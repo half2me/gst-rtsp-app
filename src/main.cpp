@@ -103,11 +103,15 @@ static gboolean KeyboardHandler(GIOChannel *source, GIOCondition cond, gpointer 
   switch (g_ascii_tolower (str[0])) {
 
     case '[':
-      gst_element_set_state (topology->GetPipe(0), GST_STATE_PAUSED);
+      gst_element_set_state (topology->GetPipe("main_pipe"), GST_STATE_PAUSED);
       break;
 
     case ']':
-      gst_element_set_state (topology->GetPipe(0), GST_STATE_PLAYING);
+      gst_element_set_state (topology->GetPipe("main_pipe"), GST_STATE_PLAYING);
+      break;
+
+    case ' ':
+      gst_element_set_state (topology->GetPipe("main_pipe"), GST_STATE_READY);
       break;
 
     case 'q':
@@ -138,11 +142,11 @@ int main(int argc, char *argv[]) {
 
   // Create the server
   server = new RtspServer();
+  server->Start();
   if (!server->RegisterRtspPipes(topology->GetRtspPipes())) {
     g_printerr ("Can't create server RTSP pipeline. Quit.\n");
     Stop();
   }
-  server->Start();
 
   // attach messagehandler
   GstBus *main_bus  = gst_pipeline_get_bus (GST_PIPELINE (topology->GetPipe("main_pipe")));

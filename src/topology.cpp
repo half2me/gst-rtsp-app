@@ -1,7 +1,3 @@
-//
-// Created by pszekeres on 2017.05.23..
-//
-
 #include <cstdio>
 #include "topology.h"
 
@@ -25,18 +21,19 @@ bool Topology::LoadJson(std::string json) {
 
 
   raw_elements = {
-      {"source0", "v4l2src"}, {"tee0", "tee"},
+      {"source0", "videotestsrc"}, {"tee0", "tee"},
       {"queue0", "queue"}, {"valve0", "valve"}, {"convert0", "videoconvert"}, {"sink0", "aasink"},
       {"queue1", "queue"}, {"valve1", "valve"},
-      {"scale1", "videoscale"}, {"videorate1", "videorate"}, {"vaapiproc1", "vaapipostproc"},
-      {"vaapienc1", "vaapih264enc"}, {"h264pay0", "rtph264pay"},
+      {"scale1", "videoscale"}, {"videorate1", "videorate"}, {"vaapiproc1", "videoconvert"},
+      {"vaapienc1", "x264enc"}, {"h264pay0", "rtph264pay"},
       {"queue2", "queue"}, {"valve2", "valve"},
       {"scale2", "videoscale"}, {"videorate2", "videorate"}, {"convert2", "videoconvert"},
       {"theoraenc2", "theoraenc"}, {"theorapay0", "rtptheorapay"}
   };
 
   raw_pipes = {
-      {"main_pipe", {"source0", "tee0", "queue0", "valve0", "convert0", "sink0",
+      {"main_pipe", {"source0", "tee0",
+                     "queue0", "valve0", "convert0", "sink0",
                      "queue1", "valve1",
                      "queue2", "valve2"}}
   };
@@ -47,7 +44,6 @@ bool Topology::LoadJson(std::string json) {
   };
 
   raw_links = {
-      {"source0", "tee0"},
       {"tee0", "queue0"}, {"queue0", "valve0"}, {"valve0", "convert0"}, {"convert0", "sink0"},
       {"tee0", "queue1"}, {"queue1", "valve1"},
       {"scale1", "videorate1"}, {"vaapiproc1", "vaapienc1"}, {"vaapienc1", "h264pay0"},
@@ -86,6 +82,7 @@ bool Topology::LoadJson(std::string json) {
   };
 
   raw_cap_links = {
+    {std::make_tuple("source0", "tee0", main_caps)},
     {std::make_tuple("videorate1", "vaapiproc1", h264_caps)},
     {std::make_tuple("convert2", "theoraenc2", theora_caps)}
   };
@@ -99,7 +96,7 @@ bool Topology::LoadJson(std::string json) {
   for (auto iter = raw_elements.begin(); iter != raw_elements.end(); ++iter) {
     if (!(elements[iter->first] = gst_element_factory_make(iter->second.c_str(), iter->first.c_str()))) {
       g_printerr("Element \"%s\" (type: %s) could not be created.\n", iter->first.c_str(), iter->second.c_str());
-      return -1;
+      return false;
     }
   }
 
@@ -157,40 +154,14 @@ bool Topology::LoadJson(std::string json) {
   // --------------
   //g_object_set (GetElement("h264pay0"), "pt", 96, "name", "pay0", NULL);
   //g_object_set (main_pipe, "message-forward", TRUE, NULL);
-  //g_object_set (b1_pay, "pt", 96, NULL);
-  //g_object_set (source2, "pattern", 18, NULL);
+  g_object_set (GetElement("h264pay0"), "pt", 96, NULL);
+  g_object_set (GetElement("theorapay0"), "pt", 96, NULL);
+  g_object_set (GetElement("source0"), "pattern", 18, "is-live", TRUE, NULL);
   //g_object_set (b0_sink, "video-sink", "aasink", NULL);
-  //g_object_set(valve0, "drop", FALSE, NULL);
+  g_object_set(GetElement("valve1"), "drop", FALSE, NULL);
+  g_object_set(GetElement("valve2"), "drop", FALSE, NULL);
 
   return true;
-}
-
-gboolean Topology::LinkToTee(GstElement *tee, GstElement *element) {
-
-  // Get the source pad template of the tee element
-  GstPadTemplate *tee_src_pad_template;
-  if (!(tee_src_pad_template = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS (tee), "src_%u"))) {
-    g_critical ("Unable to get pad template");
-    return FALSE;
-  }
-
-  // Obtaining request pads for the tee elements
-  GstPad *tee_queue_pad, *queue_tee_pad;
-  tee_queue_pad = gst_element_request_pad(tee, tee_src_pad_template, NULL, NULL);
-
-  // Get sinkpad of the queue element
-  queue_tee_pad = gst_element_get_static_pad(element, "sink");
-
-  // Link the tee to the queue
-  if (gst_pad_link(tee_queue_pad, queue_tee_pad) != GST_PAD_LINK_OK) {
-    g_critical ("Tee and %s could not be linked.\n", gst_element_get_name(element));
-    return FALSE;
-  }
-
-  gst_object_unref(queue_tee_pad);
-  gst_object_unref(tee_queue_pad);
-
-  return TRUE;
 }
 
 GstElement *Topology::GetPipe(std::string name) {
@@ -237,7 +208,7 @@ Topology::ConnectRtspPipe(GstElement *rtsp_pipe,
       "intervideosrc", ("intersrc_" + rtsp_pipe_name).c_str());
 
   if (!intersink || !intersrc) {
-    g_error("Error creating intervideo pair for %s.\n", rtsp_pipe_name.c_str());
+    g_error("Error creating intervideo pair of pipe \"%s\"\n", rtsp_pipe_name.c_str());
     return FALSE;
   }
 
@@ -256,6 +227,34 @@ Topology::ConnectRtspPipe(GstElement *rtsp_pipe,
 
     return FALSE;
   }
+
+  return TRUE;
+}
+
+gboolean Topology::LinkToTee(GstElement *tee, GstElement *element) {
+
+  // Get the source pad template of the tee element
+  GstPadTemplate *tee_src_pad_template;
+  if (!(tee_src_pad_template = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS (tee), "src_%u"))) {
+    g_critical ("Unable to get pad template");
+    return FALSE;
+  }
+
+  // Obtaining request pads for the tee elements
+  GstPad *tee_queue_pad, *queue_tee_pad;
+  tee_queue_pad = gst_element_request_pad(tee, tee_src_pad_template, NULL, NULL);
+
+  // Get sinkpad of the queue element
+  queue_tee_pad = gst_element_get_static_pad(element, "sink");
+
+  // Link the tee to the queue
+  if (gst_pad_link(tee_queue_pad, queue_tee_pad) != GST_PAD_LINK_OK) {
+    g_critical ("Tee and %s could not be linked.\n", gst_element_get_name(element));
+    return FALSE;
+  }
+
+  gst_object_unref(queue_tee_pad);
+  gst_object_unref(tee_queue_pad);
 
   return TRUE;
 }
