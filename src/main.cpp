@@ -29,7 +29,6 @@ void Stop() {
   }
 
   if (topology) {
-    gst_element_set_state (topology->GetPipe("Pipe-main"), GST_STATE_NULL);
     g_free(topology);
   }
 
@@ -132,11 +131,17 @@ int main(int argc, char *argv[]) {
 
   // Load pipeline definition
   topology = new Topology();
-  topology->LoadJson("LOFASZ");
+  if (!topology->LoadJson("LOFASZ")) {
+    g_printerr ("Can't build pipeline hierarchy from definitions. Quit.\n");
+    Stop();
+  }
 
   // Create the server
   server = new RtspServer();
-  server->RegisterRtspPipes(topology->GetRtspPipes());
+  if (!server->RegisterRtspPipes(topology->GetRtspPipes())) {
+    g_printerr ("Can't create server RTSP pipeline. Quit.\n");
+    Stop();
+  }
   server->Start();
 
   // attach messagehandler
@@ -154,7 +159,7 @@ int main(int argc, char *argv[]) {
 
 
   // Start playing
-  if (gst_element_set_state(topology->GetPipe("Pipe-main"), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+  if (gst_element_set_state(topology->GetPipe("main-pipe"), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
     g_printerr ("Unable to set the main pipeline to the playing state.\n");
     Stop();
   }

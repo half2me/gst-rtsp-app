@@ -54,11 +54,11 @@ private:
   map<string, vector<string>> raw_pipes;
   map<string, vector<string>> raw_rtsp_pipes;
 
-  vector<tuple<string, string, string, string>> raw_rtsp_connections;
-  vector<pair<string, string>> raw_links;
-
+  map<string, tuple<string, string, string>> raw_rtsp_connections;
   map<string, vector<string>> raw_properties;
   map<string, vector<string>> raw_caps;
+
+  vector<pair<string, string>> raw_links;
 
 
 };
