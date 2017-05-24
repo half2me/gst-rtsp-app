@@ -43,18 +43,23 @@ private:
     GstElement *rtsp_start_point
   );
 
-  void InitPipe(std::string name);
-
-  map<string, vector<string>> raw_pipes;
-  map<string, vector<string>> raw_rtsp_pipes;
-  vector<pair<string, string>> raw_links;
-  vector<tuple<string, string, string, string>> raw_rtsp_connections;
-
-  vector<pair<string, string>> raw_properties;
-
+  // instances
+  map<string, GstElement*> elements;
   map<string, GstElement*> pipes;
   map<string, GstElement*> rtsp_pipes;
-  map<string, GstElement*> elements;
+  map<string, GstCaps*> caps;
+
+  // json string dictionaries
+  map<string, string> raw_elements;
+  map<string, vector<string>> raw_pipes;
+  map<string, vector<string>> raw_rtsp_pipes;
+
+  vector<tuple<string, string, string, string>> raw_rtsp_connections;
+  vector<pair<string, string>> raw_links;
+
+  map<string, vector<string>> raw_properties;
+  map<string, vector<string>> raw_caps;
+
 
 };
 

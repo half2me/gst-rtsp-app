@@ -22,7 +22,7 @@ struct TestRTSPMediaFactory {
   GstRTSPMediaFactory parent;
 };
 
-std::vector<GstElement*> RtspServer::rtsp_pipes = std::vector<GstElement*>();
+std::map<std::string, GstElement*> RtspServer::rtsp_pipes = std::map<std::string, GstElement*>();
 
 RtspServer::RtspServer()
 {
@@ -63,46 +63,42 @@ RtspServer::Stop()
 //  }
 }
 
-gboolean RtspServer::RegisterRtspPipes(const std::vector<GstElement*>& pipes)
+gboolean RtspServer::RegisterRtspPipes(const std::map<std::string, GstElement*>& pipes)
 {
-  char buf[16];
-  unsigned long n_pipes = pipes.size();
-  for (int i = 0; i < n_pipes; i++)
+  for(auto iter = pipes.begin(); iter != pipes.end(); ++iter)
   {
-    GstRTSPMountPoints *mount;
-    GstRTSPMediaFactory *factory;
-
-    factory = (GstRTSPMediaFactory *) g_object_new(TEST_TYPE_RTSP_MEDIA_FACTORY, NULL);
-    mount = gst_rtsp_server_get_mount_points(gst_rtsp_server);
+    GstRTSPMediaFactory *factory = (GstRTSPMediaFactory *) g_object_new(TEST_TYPE_RTSP_MEDIA_FACTORY, NULL);
+    GstRTSPMountPoints *mount = gst_rtsp_server_get_mount_points(gst_rtsp_server);
 
     // use the launch string for the mediafactory to identify pipe index
-    sprintf(buf, "%d", i);
-    gst_rtsp_media_factory_set_launch(factory, buf);
+    gst_rtsp_media_factory_set_launch(factory, iter->first.c_str());
 
     // Set this shitty pipeline to shared between all the fucked up clients so they won't mess up the driver's state
     gst_rtsp_media_factory_set_shared(factory, TRUE);
 
     // attach the test factory to the /testN url
-    sprintf(buf, "/test%d", i);
-    gst_rtsp_mount_points_add_factory(mount, buf, factory);
+    gst_rtsp_mount_points_add_factory(mount, iter->first.c_str(), factory);
 
     // don't need the ref to the mapper anymore
     g_object_unref(mount);
 
-    rtsp_pipes.push_back(pipes[i]);
+    rtsp_pipes[iter->first] = iter->second;
   }
-
 
   return TRUE;
 }
 
 GstElement *
 RtspServer::ImportPipeline(GstRTSPMediaFactory *factory, const GstRTSPUrl *url) {
-  char *ptr;
-  long index = strtol(gst_rtsp_media_factory_get_launch(factory), &ptr, 2);
 
-  g_print("Media #%ld is initialized to use pipe%ld.\n", index, index);
-  return rtsp_pipes[index];
+  auto pipe_name = std::string(gst_rtsp_media_factory_get_launch(factory));
+  auto url_path = std::string(url->abspath);
+
+  g_print("Media \"%s\" is initialized to use pipe \"%s\".\n",
+          url_path.c_str(),
+          pipe_name.c_str());
+
+  return rtsp_pipes[pipe_name];
 }
 
 

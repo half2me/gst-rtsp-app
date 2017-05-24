@@ -7,6 +7,7 @@
 
 #include <gst/rtsp-server/rtsp-server.h>
 #include <vector>
+#include <map>
 
 class RtspServer {
 
@@ -18,7 +19,7 @@ public:
   gboolean Start();
   void Stop();
 
-  gboolean RegisterRtspPipes(const std::vector<GstElement*>& pipes);
+  gboolean RegisterRtspPipes(const std::map<std::string, GstElement*>& pipes);
 
 private:
 
@@ -27,11 +28,10 @@ private:
 
 // Override default rtsp gst_rtsp_server mediafactory implementation
 // -----------------------------------------------------------------
-
 public:
   static GstElement * ImportPipeline (GstRTSPMediaFactory * factory, const GstRTSPUrl * url);
   static GstElement * CreateMediaPipe(GstRTSPMediaFactory *factory, GstRTSPMedia *media);
-  static std::vector<GstElement*> rtsp_pipes;
+  static std::map<std::string, GstElement*> rtsp_pipes;
 
 private:
   // this timeout is periodically run to clean up the expired rtsp sessions from the pool.
