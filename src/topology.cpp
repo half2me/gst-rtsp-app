@@ -6,11 +6,38 @@
 #include "topology.h"
 
 Topology::Topology() {
-  g_mutex_init(&pipe_mutex);
+
 }
 
 Topology::~Topology() {
-  g_mutex_clear(&pipe_mutex);
+
+}
+
+bool Topology::LoadJson(std::string json) {
+
+  // Fill the pipes with elements
+  for(auto iter = raw_pipes.begin(); iter != raw_pipes.end(); ++iter) {
+    for (auto &element : iter->second) {
+      gst_bin_add(GST_BIN(GetElement(iter->first)), GetElement(element));
+    }
+  }
+
+  // Fill RTSP pipes
+  for(auto iter = raw_rtsp_pipes.begin(); iter != raw_rtsp_pipes.end(); ++iter) {
+    for (auto &element : iter->second) {
+      gst_bin_add(GST_BIN(GetElement(iter->first)), GetElement(element));
+    }
+  }
+
+  // Connect elements
+  for (auto &link : raw_links) {
+    if (!gst_element_link(GetElement(link.first), GetElement(link.second))) {
+      g_critical ("Unable to link %s to %s\n", link.first.c_str(), link.second.c_str());
+      return false;
+    }
+  }
+
+  return true;
 }
 
 gboolean Topology::LinkToTee(GstElement* tee, GstElement* element){
@@ -19,11 +46,11 @@ gboolean Topology::LinkToTee(GstElement* tee, GstElement* element){
   GstPadTemplate *tee_src_pad_template;
   if ( !(tee_src_pad_template = gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS (tee), "src_%u"))) {
     g_critical ("Unable to get pad template");
-    //Stop();
+    return FALSE;
   }
 
-  GstPad* tee_queue_pad, *queue_tee_pad;
   // Obtaining request pads for the tee elements
+  GstPad* tee_queue_pad, *queue_tee_pad;
   tee_queue_pad = gst_element_request_pad(tee, tee_src_pad_template, NULL, NULL);
 
   // Get sinkpad of the queue element
@@ -31,9 +58,8 @@ gboolean Topology::LinkToTee(GstElement* tee, GstElement* element){
 
   // Link the tee to the queue
   if (gst_pad_link(tee_queue_pad, queue_tee_pad) != GST_PAD_LINK_OK) {
-    g_critical ("Tee for branch of %s could not be linked.\n", gst_element_get_name(element));
-    // TODO identify elem
-    //Stop();
+    g_critical ("Tee and %s could not be linked.\n", gst_element_get_name(element));
+    return FALSE;
   }
 
   gst_object_unref(queue_tee_pad);
@@ -46,6 +72,25 @@ GstElement *Topology::GetPipe(std::string name) {
   return pipes[name];
 }
 
+std::map<std::string, GstElement*>& Topology::GetPipes(){
+  return pipes;
+};
+
+GstElement* Topology::GetRtspPipe(std::string name) {
+  return rtsp_pipes[name];
+};
+
+std::map<std::string, GstElement*>& Topology::GetRtspPipes(){
+  return rtsp_pipes;
+};
+
+GstElement* Topology::GetElement(std::string name){
+  return elements[name];
+}
+std::map<std::string, GstElement*>& Topology::GetElements(){
+  return elements;
+};
+
 void Topology::InitPipe(std::string name) {
   pipes[name] = gst_pipeline_new(name.c_str());
 }
@@ -57,6 +102,7 @@ Topology::ConnectRtspPipe(
   GstElement *rtsp_pipe,
   GstElement *rtsp_start_point)
 {
+  // Make sure its a valid pipe
   if (!GST_IS_PIPELINE(rtsp_pipe)) {
     return FALSE;
   }
@@ -88,8 +134,6 @@ Topology::ConnectRtspPipe(
   {
     return FALSE;
   }
-
-  rtsp_pipes.push_back(rtsp_pipe);
 
   return TRUE;
 }

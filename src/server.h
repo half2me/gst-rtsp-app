@@ -23,7 +23,6 @@ public:
 private:
 
   GstRTSPServer *gst_rtsp_server;
-  unsigned int pipe_count;
 
 
 // Override default rtsp gst_rtsp_server mediafactory implementation

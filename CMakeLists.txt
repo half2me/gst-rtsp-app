@@ -4,6 +4,7 @@ add_definitions(-DVERSION=\"${PROJECT_VERSION}\")
 
 #set(CMAKE_BUILD_TYPE Release)
 #set(CMAKE_VERBOSE_MAKEFILE on)
+set (CMAKE_CXX_STANDARD 11)
 
 # GST: Find it using pkg-config
 include(FindPkgConfig)
