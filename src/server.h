@@ -1,9 +1,4 @@
-//
-// Created by pszekeres on 2017.05.18..
-//
-
-#ifndef GST_RTSP_APP_SERVER_H
-#define GST_RTSP_APP_SERVER_H
+#pragma once
 
 #include <gst/rtsp-server/rtsp-server.h>
 #include <vector>
@@ -38,5 +33,3 @@ private:
   static gboolean SessionPoolTimeout(GstRTSPServer *server);
   static void StateChange(GstRTSPMedia *gstrtspmedia, gint arg1, gpointer user_data);
 };
-
-#endif //GST_RTSP_APP_SERVER_H

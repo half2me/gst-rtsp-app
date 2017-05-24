@@ -36,7 +36,7 @@ private:
   static gboolean LinkToTee(GstElement* tee, GstElement* element);
 
   // Converts a pipe to use with the Gst RTSP Server
-  gboolean ConnectRtspPipe(
+  bool ConnectRtspPipe(
     GstElement *source_pipe,
     GstElement *source_end_point,
     GstElement *rtsp_pipe,
@@ -59,7 +59,7 @@ private:
   map<string, vector<string>> raw_caps;
 
   vector<pair<string, string>> raw_links;
-
+  vector<tuple<string, string, GstCaps*>> raw_cap_links;
 
 };
 

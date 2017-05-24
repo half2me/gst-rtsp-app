@@ -145,7 +145,7 @@ int main(int argc, char *argv[]) {
   server->Start();
 
   // attach messagehandler
-  GstBus *main_bus  = gst_pipeline_get_bus (GST_PIPELINE (topology->GetPipe("Pipe-main")));
+  GstBus *main_bus  = gst_pipeline_get_bus (GST_PIPELINE (topology->GetPipe("main_pipe")));
   msg_watch = gst_bus_add_watch (main_bus, MessageHandler, NULL);
   gst_object_unref (main_bus);
 
@@ -159,7 +159,7 @@ int main(int argc, char *argv[]) {
 
 
   // Start playing
-  if (gst_element_set_state(topology->GetPipe("main-pipe"), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+  if (gst_element_set_state(topology->GetPipe("main_pipe"), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
     g_printerr ("Unable to set the main pipeline to the playing state.\n");
     Stop();
   }

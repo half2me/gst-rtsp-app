@@ -1,18 +1,11 @@
-//
-// Created by pszekeres on 2017.05.18..
-//
-
 #include <gst/rtsp-server/rtsp-media-factory.h>
 #include <stdlib.h>
 #include <cstdio>
 
 #include "server.h"
 
-#define TEST_TYPE_RTSP_MEDIA_FACTORY      (test_rtsp_media_factory_get_type ())
+#define TEST_TYPE_RTSP_MEDIA_FACTORY (test_rtsp_media_factory_get_type ())
 GType test_rtsp_media_factory_get_type(void);
-
-typedef struct TestRTSPMediaFactoryClass TestRTSPMediaFactoryClass;
-typedef struct TestRTSPMediaFactory TestRTSPMediaFactory;
 
 struct TestRTSPMediaFactoryClass {
   GstRTSPMediaFactoryClass parent;
@@ -22,10 +15,9 @@ struct TestRTSPMediaFactory {
   GstRTSPMediaFactory parent;
 };
 
-std::map<std::string, GstElement*> RtspServer::rtsp_pipes = std::map<std::string, GstElement*>();
+std::map<std::string, GstElement *> RtspServer::rtsp_pipes = std::map<std::string, GstElement *>();
 
-RtspServer::RtspServer()
-{
+RtspServer::RtspServer() {
   gst_rtsp_server = gst_rtsp_server_new();
   gst_rtsp_server_set_service(gst_rtsp_server, "8554");
 }
@@ -37,13 +29,13 @@ RtspServer::~RtspServer() {
 gboolean
 RtspServer::Start() {
 
-  g_print ("RTSP Server init...\n");
+  g_print("RTSP Server init...\n");
 
   // add a timeout for the session cleanup
   g_timeout_add_seconds(2, (GSourceFunc) SessionPoolTimeout, gst_rtsp_server);
 
-  if (gst_rtsp_server_attach (gst_rtsp_server, NULL) == 0) {
-    g_print ("Failed to attach the server\n");
+  if (gst_rtsp_server_attach(gst_rtsp_server, NULL) == 0) {
+    g_print("Failed to attach the server\n");
     return FALSE;
   }
 
@@ -51,8 +43,7 @@ RtspServer::Start() {
 }
 
 void
-RtspServer::Stop()
-{
+RtspServer::Stop() {
   g_print("Stopping RTSP Server\n");
 
 // TODO Probably RTSP Pipelines are destroyed by gst_server, but who knows...
@@ -63,10 +54,8 @@ RtspServer::Stop()
 //  }
 }
 
-gboolean RtspServer::RegisterRtspPipes(const std::map<std::string, GstElement*>& pipes)
-{
-  for(auto iter = pipes.begin(); iter != pipes.end(); ++iter)
-  {
+gboolean RtspServer::RegisterRtspPipes(const std::map<std::string, GstElement *> &pipes) {
+  for (auto iter = pipes.begin(); iter != pipes.end(); ++iter) {
     GstRTSPMediaFactory *factory = (GstRTSPMediaFactory *) g_object_new(TEST_TYPE_RTSP_MEDIA_FACTORY, NULL);
     GstRTSPMountPoints *mount = gst_rtsp_server_get_mount_points(gst_rtsp_server);
 
@@ -77,7 +66,7 @@ gboolean RtspServer::RegisterRtspPipes(const std::map<std::string, GstElement*>&
     gst_rtsp_media_factory_set_shared(factory, TRUE);
 
     // attach the test factory to the /testN url
-    gst_rtsp_mount_points_add_factory(mount, iter->first.c_str(), factory);
+    gst_rtsp_mount_points_add_factory(mount, std::string('/' + iter->first).c_str(), factory);
 
     // don't need the ref to the mapper anymore
     g_object_unref(mount);
@@ -101,39 +90,35 @@ RtspServer::ImportPipeline(GstRTSPMediaFactory *factory, const GstRTSPUrl *url) 
   return rtsp_pipes[pipe_name];
 }
 
-
 GstElement *
 RtspServer::CreateMediaPipe(GstRTSPMediaFactory *factory, GstRTSPMedia *media) {
 
-  if (!gst_rtsp_media_factory_get_launch(factory)) {
-    g_critical("Error creating media pipe!\n");
+  auto pipe_name = gst_rtsp_media_factory_get_launch(factory);
+  if (!pipe_name) {
+    g_critical("Error creating media pipe for \"%s\"!\n",
+               gst_element_get_name(gst_rtsp_media_get_element(media)));
+
     return NULL;
   }
 
-  char *ptr;
-  long index = strtol(gst_rtsp_media_factory_get_launch(factory), &ptr, 2);
-  char buf[16];
-  sprintf(buf, "ext-pipe%ld", index);
-
-  GstElement *pipeline = gst_pipeline_new (buf);;
-  gst_rtsp_media_take_pipeline (media, GST_PIPELINE_CAST (pipeline));
+  auto ext_pipename = "e_" + std::string(pipe_name);
+  GstElement *pipeline = gst_pipeline_new(ext_pipename.c_str());
+  gst_rtsp_media_take_pipeline(media, GST_PIPELINE_CAST (pipeline));
 
   // This way the media will not be reinitialized - our created pipe is not lost
   gst_rtsp_media_set_reusable(media, TRUE);
-  g_print("RTSP Media #%ld is reusable.\n", index);
 
+  // Watch state changes
   g_signal_connect (media, "new-state", G_CALLBACK(StateChange), NULL);
 
   return pipeline;
 }
 
-
 gboolean
-RtspServer::SessionPoolTimeout(GstRTSPServer *server)
-{
-  GstRTSPSessionPool *pool = gst_rtsp_server_get_session_pool (server);
-  gst_rtsp_session_pool_cleanup (pool);
-  g_object_unref (pool);
+RtspServer::SessionPoolTimeout(GstRTSPServer *server) {
+  GstRTSPSessionPool *pool = gst_rtsp_server_get_session_pool(server);
+  gst_rtsp_session_pool_cleanup(pool);
+  g_object_unref(pool);
 
   return TRUE;
 }
@@ -150,10 +135,9 @@ G_DEFINE_TYPE (TestRTSPMediaFactory, test_rtsp_media_factory,
                GST_TYPE_RTSP_MEDIA_FACTORY);
 
 static void
-test_rtsp_media_factory_class_init (TestRTSPMediaFactoryClass * test_klass)
-{
+test_rtsp_media_factory_class_init(TestRTSPMediaFactoryClass *test_klass) {
   GstRTSPMediaFactoryClass *mf_klass =
-    (GstRTSPMediaFactoryClass *) (test_klass);
+      (GstRTSPMediaFactoryClass *) (test_klass);
   mf_klass->create_element = RtspServer::ImportPipeline;
   mf_klass->create_pipeline = RtspServer::CreateMediaPipe;
 
@@ -161,6 +145,5 @@ test_rtsp_media_factory_class_init (TestRTSPMediaFactoryClass * test_klass)
 }
 
 static void
-test_rtsp_media_factory_init (TestRTSPMediaFactory * factory)
-{
+test_rtsp_media_factory_init(TestRTSPMediaFactory *factory) {
 }
