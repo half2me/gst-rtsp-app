@@ -50,18 +50,38 @@ bool Topology::LoadJson(std::string json) {
   };
 
   raw_elements = {
-      {"source0", "v4l2src"}, /*{"scale0", "videoscale"}, {"videorate0", "videorate"}, */{"tee0", "tee"},
-      {"queue0", "queue"}, {"valve0", "valve"}, {"convert0", "videoconvert"}, {"sink0", "aasink"},
-      {"queue1", "queue"}, {"valve1", "valve"},
-      {"scale1", "videoscale"}, {"videorate1", "videorate"}, {"vaapiproc1", "vaapipostproc"},
-      {"vaapienc1", "vaapih264enc"}, {"h264pay1", "rtph264pay"},
-      {"queue2", "queue"}, {"valve2", "valve"},
-      {"scale2", "videoscale"}, {"videorate2", "videorate"}, {"convert2", "videoconvert"},
-      {"theoraenc2", "theoraenc"}, {"theorapay2", "rtptheorapay"},
+      {"source0", "v4l2src"},
+      /*{"scale0", "videoscale"},
+      {"videorate0", "videorate"},
+      */
+      {"tee0", "tee"},
+      {"queue0", "queue"},
+        {"valve0", "valve"},
+        {"convert0", "videoconvert"},
+        {"sink0", "aasink"},
+      {"queue1", "queue"},
+        {"valve1", "valve"},
+        {"scale1", "videoscale"},
+        {"videorate1", "videorate"},
+        {"vaapiproc1", "vaapipostproc"},
+        {"vaapienc1", "vaapih264enc"},
+        {"h264pay1", "rtph264pay"},
+      {"queue2", "queue"},
+        {"valve2", "valve"},
+        {"scale2", "videoscale"},
+        {"videorate2", "videorate"},
+        {"convert2", "videoconvert"},
+        {"theoraenc2", "theoraenc"},
+        {"theorapay2", "rtptheorapay"},
 
       // test
-      {"source_test", "videotestsrc"}, {"sink_test", "queue"},
-      {"source_rtsp", "valve"}, {"conv_rtsp","videoconvert"},{"encode_rtsp", "theoraenc"}, {"pay_test", "rtptheorapay"}
+      {"source_test", "videotestsrc"},
+      {"sink_test", "queue"},
+
+      {"source_rtsp", "valve"},
+      {"conv_rtsp","videoconvert"},
+      {"encode_rtsp", "theoraenc"},
+      {"pay_test", "rtptheorapay"}
   };
 
   raw_pipes = {
@@ -82,21 +102,33 @@ bool Topology::LoadJson(std::string json) {
   };
 
   raw_links = {
-      {"source_test", "sink_test"},
-      {"source_rtsp", "conv_rtsp"}, {"conv_rtsp", "encode_rtsp"}, {"encode_rtsp", "pay_test"},
+      {std::make_tuple("source_test", "sink_test", "")},
 
-      //{"source0", "scale0"}, {"scale0", "videorate0"},
-      {"tee0", "queue0"}, {"queue0", "valve0"}, {"valve0", "convert0"}, {"convert0", "sink0"},
-      {"tee0", "queue1"}, {"queue1", "valve1"},
-      {"scale1", "videorate1"}, {"vaapiproc1", "vaapienc1"}, {"vaapienc1", "h264pay1"},
-      {"tee0", "queue2"}, {"queue2", "valve2"},
-      {"scale2", "videorate2"}, {"videorate2", "convert2"}, {"theoraenc2", "theorapay2"}
-  };
+      {std::make_tuple("source_rtsp", "conv_rtsp", "")},
+      {std::make_tuple("conv_rtsp", "encode_rtsp", "")},
+      {std::make_tuple("encode_rtsp", "pay_test", "")},
 
-  raw_cap_links = {
-    {std::make_tuple("source0", "tee0", main_caps)},
-    {std::make_tuple("videorate1", "vaapiproc1", h264_caps)},
-    {std::make_tuple("convert2", "theoraenc2", theora_caps)}
+      {std::make_tuple("source0", "tee0", "")},
+      //{std::make_tuple("source0", "scale0", "")}, 
+      // {std::make_tuple("scale0", "videorate0", "")},
+      {std::make_tuple("tee0", "queue0", "")},
+      {std::make_tuple("queue0", "valve0", "")},
+      {std::make_tuple("valve0", "convert0", "")},
+      {std::make_tuple("convert0", "sink0", "")},
+
+      {std::make_tuple("tee0", "queue1", "")},
+      {std::make_tuple("queue1", "valve1", "")},
+      {std::make_tuple("scale1", "videorate1", "")},
+      {std::make_tuple("videorate1", "vaapiproc1", "h264_caps")},
+      {std::make_tuple("vaapiproc1", "vaapienc1", "")},
+      {std::make_tuple("vaapienc1", "h264pay1", "")},
+ 
+      {std::make_tuple("tee0", "queue2", "")},
+      {std::make_tuple("queue2", "valve2", "")},
+      {std::make_tuple("scale2", "videorate2", "")},
+      {std::make_tuple("videorate2", "convert2", "")},
+      {std::make_tuple("convert2", "theoraenc2", "theora_caps")},
+      {std::make_tuple("theoraenc2", "theorapay2", "")}
   };
 
   raw_rtsp_connections = {
@@ -172,27 +204,32 @@ bool Topology::LoadJson(std::string json) {
     }
   }
 
-  // Connect elements
   for (auto &link : raw_links) {
-    if (!gst_element_link(GetElement(link.first), GetElement(link.second))) {
-      g_critical ("Unable to link \"%s\" to \"%s\"\n", link.first.c_str(), link.second.c_str());
-      return false;
-    }
-  }
+    const string& src_name = get<0>(link);
+    const string& dst_name = get<1>(link);
+    const string& cap_name = get<2>(link);
 
-  for (auto &link : raw_cap_links) {
-    if (!gst_element_link_filtered(GetElement(get<0>(link)), GetElement(get<1>(link)), get<2>(link))) {
-      g_critical ("Unable to link caps.\n");
-      return false;
+    if (cap_name.empty()) {
+      if (!gst_element_link(GetElement(src_name), GetElement(dst_name))){
+        g_critical ("Unable to link \"%s\" to \"%s\"\n", src_name.c_str(), dst_name.c_str());
+      } 
+    } 
+    else {
+      if (!gst_element_link_filtered(GetElement(src_name), GetElement(get<1>(link)), GetCaps(get<2>(link)))) {
+        g_critical ("Unable to link \"%s\" to \"%s\" using caps \"%s\".\n",
+                    src_name.c_str(), dst_name.c_str(), cap_name.c_str());
+        return false;
+      }
     }
   }
 
   // Connect RTSP pipe to another pipe's element
   for (auto iter = raw_rtsp_connections.begin(); iter != raw_rtsp_connections.end(); ++iter) {
 
-    std::string dst_pipe_name, dst_last_elem_name, rtsp_first_elem_name;
-    const string &pipe_name = iter->first;
-    std::tie(dst_pipe_name, dst_last_elem_name, rtsp_first_elem_name) = iter->second;
+    const string &pipe_name = iter->first, 
+        &dst_pipe_name = get<0>(iter->second),
+        &dst_last_elem_name = get<1>(iter->second),
+        &rtsp_first_elem_name = get<2>(iter->second);
 
     if (!ConnectRtspPipe(rtsp_pipes[pipe_name],
                          pipes[dst_pipe_name],
@@ -202,35 +239,13 @@ bool Topology::LoadJson(std::string json) {
       g_critical ("Unable to link pipe %s to %s\n",
                   dst_pipe_name.c_str(),
                   pipe_name.c_str());
+
       return false;
     }
   }
 
   return true;
 }
-
-GstElement *Topology::GetPipe(std::string name) {
-  return pipes[name];
-}
-
-std::map<std::string, GstElement *> &Topology::GetPipes() {
-  return pipes;
-};
-
-GstElement *Topology::GetRtspPipe(std::string name) {
-  return rtsp_pipes[name];
-};
-
-std::map<std::string, GstElement *> &Topology::GetRtspPipes() {
-  return rtsp_pipes;
-};
-
-GstElement *Topology::GetElement(std::string name) {
-  return elements[name];
-}
-std::map<std::string, GstElement *> &Topology::GetElements() {
-  return elements;
-};
 
 bool
 Topology::ConnectRtspPipe(GstElement *rtsp_pipe,
@@ -274,6 +289,34 @@ Topology::ConnectRtspPipe(GstElement *rtsp_pipe,
   }
 
   return TRUE;
+}
+
+GstElement *Topology::GetPipe(std::string name) {
+  return pipes[name];
+}
+
+std::map<std::string, GstElement *> &Topology::GetPipes() {
+  return pipes;
+};
+
+GstElement *Topology::GetRtspPipe(std::string name) {
+  return rtsp_pipes[name];
+};
+
+std::map<std::string, GstElement *> &Topology::GetRtspPipes() {
+  return rtsp_pipes;
+};
+
+GstElement *Topology::GetElement(std::string name) {
+  return elements[name];
+}
+
+std::map<std::string, GstElement *> &Topology::GetElements() {
+  return elements;
+};
+
+GstCaps *Topology::GetCaps(string name) {
+  return caps[name];
 }
 
 gboolean Topology::LinkToTee(GstElement *tee, GstElement *element) {

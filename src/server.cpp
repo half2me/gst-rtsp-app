@@ -20,10 +20,13 @@ std::map<std::string, GstElement *> RtspServer::rtsp_pipes = std::map<std::strin
 RtspServer::RtspServer() {
   gst_rtsp_server = gst_rtsp_server_new();
   gst_rtsp_server_set_service(gst_rtsp_server, "8554");
+  gst_rtsp_server_source = 0;
 }
 
 RtspServer::~RtspServer() {
-  // TODO Guess what...
+  g_print("Destroy RTSP server\n");
+  g_source_remove(gst_rtsp_server_source);
+  g_object_unref(gst_rtsp_server);
 }
 
 gboolean
@@ -34,7 +37,8 @@ RtspServer::Start() {
   // add a timeout for the session cleanup
   g_timeout_add_seconds(2, (GSourceFunc) SessionPoolTimeout, gst_rtsp_server);
 
-  if (gst_rtsp_server_attach(gst_rtsp_server, NULL) == 0) {
+  gst_rtsp_server_source = gst_rtsp_server_attach(gst_rtsp_server, NULL);
+  if (gst_rtsp_server_source == 0) {
     g_print("Failed to attach the server\n");
     return FALSE;
   }

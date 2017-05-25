@@ -19,6 +19,7 @@ public:
 private:
 
   GstRTSPServer *gst_rtsp_server;
+  guint gst_rtsp_server_source;
 
 
 // Override default rtsp gst_rtsp_server mediafactory implementation

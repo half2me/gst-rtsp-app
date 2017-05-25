@@ -26,7 +26,9 @@ public:
   GstElement* GetElement(string name);
   map<string, GstElement*>& GetElements();
 
-private:
+  GstCaps* GetCaps(string name);
+
+ private:
 
   // Connects an element to a tee, creating a new branch on it
   static gboolean LinkToTee(GstElement* tee, GstElement* element);
@@ -52,7 +54,6 @@ private:
   map<string, vector<string>> raw_properties;
   map<string, vector<string>> raw_caps;
 
-  vector<pair<string, string>> raw_links;
-  vector<tuple<string, string, GstCaps*>> raw_cap_links;
+  vector<tuple<string, string, string>> raw_links;
 
 };
