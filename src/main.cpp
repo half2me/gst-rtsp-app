@@ -15,6 +15,8 @@ GIOChannel *io_stdin = NULL;
 RtspServer *server = NULL;
 Topology *topology = NULL;
 
+bool led = false;
+
 void Stop() {
 
   if (msg_watch)
@@ -103,20 +105,34 @@ static gboolean KeyboardHandler(GIOChannel *source, GIOCondition cond, gpointer 
   switch (g_ascii_tolower (str[0])) {
 
     case '[':
-      gst_element_set_state (topology->GetPipe("main_pipe"), GST_STATE_PAUSED);
+      gst_element_set_state (topology->GetPipe("pipe_test"), GST_STATE_PAUSED);
       break;
 
     case ']':
-      gst_element_set_state (topology->GetPipe("main_pipe"), GST_STATE_PLAYING);
+      gst_element_set_state (topology->GetPipe("pipe_test"), GST_STATE_PLAYING);
       break;
 
     case ' ':
-      gst_element_set_state (topology->GetPipe("main_pipe"), GST_STATE_READY);
+      gst_element_set_state (topology->GetPipe("pipe_test"), GST_STATE_READY);
       break;
 
     case 'q':
       Stop();
       break;
+
+    case 'l':
+      led = !led;
+      g_object_set (topology->GetElement("source0"), "led-power", led, NULL);
+      break;
+
+    case 'g':
+      g_object_set(topology->GetElement("valve1"), "drop", FALSE, NULL);
+      g_object_set(topology->GetElement("valve2"), "drop", FALSE, NULL);
+      break;
+
+    case 'h':
+      g_object_set(topology->GetElement("valve1"), "drop", TRUE, NULL);
+      g_object_set(topology->GetElement("valve2"), "drop", TRUE, NULL);
 
     default:
       break;
@@ -153,6 +169,10 @@ int main(int argc, char *argv[]) {
   msg_watch = gst_bus_add_watch (main_bus, MessageHandler, NULL);
   gst_object_unref (main_bus);
 
+  main_bus  = gst_pipeline_get_bus (GST_PIPELINE (topology->GetPipe("pipe_test")));
+  msg_watch = gst_bus_add_watch (main_bus, MessageHandler, NULL);
+  gst_object_unref (main_bus);
+
   // User keypresses
 #ifdef G_OS_WIN32
   io_stdin = g_io_channel_win32_new_fd (fileno (stdin));
@@ -160,7 +180,6 @@ int main(int argc, char *argv[]) {
   io_stdin = g_io_channel_unix_new (fileno (stdin));
 #endif
   g_io_add_watch(io_stdin, G_IO_IN, (GIOFunc) KeyboardHandler, NULL);
-
 
   // Start playing
   if (gst_element_set_state(topology->GetPipe("main_pipe"), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {

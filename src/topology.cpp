@@ -19,44 +19,12 @@ bool Topology::LoadJson(std::string json) {
 
   // TODO read from json
 
-
-  raw_elements = {
-      {"source0", "videotestsrc"}, {"tee0", "tee"},
-      {"queue0", "queue"}, {"valve0", "valve"}, {"convert0", "videoconvert"}, {"sink0", "aasink"},
-      {"queue1", "queue"}, {"valve1", "valve"},
-      {"scale1", "videoscale"}, {"videorate1", "videorate"}, {"vaapiproc1", "videoconvert"},
-      {"vaapienc1", "x264enc"}, {"h264pay0", "rtph264pay"},
-      {"queue2", "queue"}, {"valve2", "valve"},
-      {"scale2", "videoscale"}, {"videorate2", "videorate"}, {"convert2", "videoconvert"},
-      {"theoraenc2", "theoraenc"}, {"theorapay0", "rtptheorapay"}
-  };
-
-  raw_pipes = {
-      {"main_pipe", {"source0", "tee0",
-                     "queue0", "valve0", "convert0", "sink0",
-                     "queue1", "valve1",
-                     "queue2", "valve2"}}
-  };
-
-  raw_rtsp_pipes = {
-      {"rtsp_h264", {"scale1", "videorate1", "vaapiproc1", "vaapienc1", "h264pay0"}},
-      {"rtsp_theora", {"scale2", "videorate2", "convert2", "theoraenc2", "theorapay0"}}
-  };
-
-  raw_links = {
-      {"tee0", "queue0"}, {"queue0", "valve0"}, {"valve0", "convert0"}, {"convert0", "sink0"},
-      {"tee0", "queue1"}, {"queue1", "valve1"},
-      {"scale1", "videorate1"}, {"vaapiproc1", "vaapienc1"}, {"vaapienc1", "h264pay0"},
-      {"tee0", "queue2"}, {"queue2", "valve2"},
-      {"scale2", "videorate2"}, {"videorate2", "convert2"}, {"theoraenc2", "theorapay0"}
-  };
-
   // TODO Process raw caps here
   GstCaps *main_caps = gst_caps_new_simple(
       "video/x-raw",
       "width", G_TYPE_INT, 640,
       "height", G_TYPE_INT, 480,
-      "framerate", GST_TYPE_FRACTION, 30, 1,
+      "framerate", GST_TYPE_FRACTION, 15, 1,
       NULL
   );
 
@@ -64,7 +32,7 @@ bool Topology::LoadJson(std::string json) {
       "video/x-raw",
       "width", G_TYPE_INT, 640,
       "height", G_TYPE_INT, 480,
-      "framerate", GST_TYPE_FRACTION, 30, 1,
+      "framerate", GST_TYPE_FRACTION, 15, 1,
       NULL
   );
 
@@ -81,6 +49,50 @@ bool Topology::LoadJson(std::string json) {
           {"theora_caps", theora_caps}
   };
 
+  raw_elements = {
+      {"source0", "v4l2src"}, /*{"scale0", "videoscale"}, {"videorate0", "videorate"}, */{"tee0", "tee"},
+      {"queue0", "queue"}, {"valve0", "valve"}, {"convert0", "videoconvert"}, {"sink0", "aasink"},
+      {"queue1", "queue"}, {"valve1", "valve"},
+      {"scale1", "videoscale"}, {"videorate1", "videorate"}, {"vaapiproc1", "vaapipostproc"},
+      {"vaapienc1", "vaapih264enc"}, {"h264pay1", "rtph264pay"},
+      {"queue2", "queue"}, {"valve2", "valve"},
+      {"scale2", "videoscale"}, {"videorate2", "videorate"}, {"convert2", "videoconvert"},
+      {"theoraenc2", "theoraenc"}, {"theorapay2", "rtptheorapay"},
+
+      // test
+      {"source_test", "videotestsrc"}, {"sink_test", "queue"},
+      {"source_rtsp", "valve"}, {"conv_rtsp","videoconvert"},{"encode_rtsp", "theoraenc"}, {"pay_test", "rtptheorapay"}
+  };
+
+  raw_pipes = {
+      {"main_pipe", {"source0",/* "scale0", "videorate0",*/ "tee0",
+                     "queue0", "valve0", "convert0", "sink0",
+                     "queue1", "valve1",
+                     "queue2", "valve2"}},
+      // test
+      {"pipe_test", {"source_test", "sink_test"}}
+  };
+
+  raw_rtsp_pipes = {
+      {"rtsp_h264", {"scale1", "videorate1", "vaapiproc1", "vaapienc1", "h264pay1"}},
+      {"rtsp_theora", {"scale2", "videorate2", "convert2", "theoraenc2", "theorapay2"}},
+
+      // test
+      {"pipe_rtsp", {"source_rtsp", "conv_rtsp", "encode_rtsp", "pay_test"}}
+  };
+
+  raw_links = {
+      {"source_test", "sink_test"},
+      {"source_rtsp", "conv_rtsp"}, {"conv_rtsp", "encode_rtsp"}, {"encode_rtsp", "pay_test"},
+
+      //{"source0", "scale0"}, {"scale0", "videorate0"},
+      {"tee0", "queue0"}, {"queue0", "valve0"}, {"valve0", "convert0"}, {"convert0", "sink0"},
+      {"tee0", "queue1"}, {"queue1", "valve1"},
+      {"scale1", "videorate1"}, {"vaapiproc1", "vaapienc1"}, {"vaapienc1", "h264pay1"},
+      {"tee0", "queue2"}, {"queue2", "valve2"},
+      {"scale2", "videorate2"}, {"videorate2", "convert2"}, {"theoraenc2", "theorapay2"}
+  };
+
   raw_cap_links = {
     {std::make_tuple("source0", "tee0", main_caps)},
     {std::make_tuple("videorate1", "vaapiproc1", h264_caps)},
@@ -88,6 +100,7 @@ bool Topology::LoadJson(std::string json) {
   };
 
   raw_rtsp_connections = {
+      {"pipe_rtsp", std::make_tuple("pipe_test", "sink_test", "source_rtsp")},
       {"rtsp_h264", std::make_tuple("main_pipe", "valve1", "scale1")},
       {"rtsp_theora", std::make_tuple("main_pipe", "valve2", "scale2")}
   };
@@ -100,26 +113,69 @@ bool Topology::LoadJson(std::string json) {
     }
   }
 
+  // Set element properties here!!!
+  // Some settings needs to be done before pipe initialization
+  // --------------
+
+  // rename pays for the dumb rtsp server
+  g_object_set (GetElement("h264pay1"), "pt", 96, "name", "pay0", NULL);
+  g_object_set (GetElement("theorapay2"), "pt", 96, "name", "pay0", NULL);
+  g_object_set (GetElement("pay_test"), "pt", 96, "name", "pay0", NULL);
+
+  // I <3 Roseek
+  //g_object_set (GetElement("source0"), "resolution", 5, NULL);
+  //g_object_set (GetElement("source0"), "led-power", FALSE, NULL);
+
+  // set fancy ball for test stream
+  g_object_set (GetElement("source_test"), "pattern", 18, "is-live", TRUE, NULL);
+
+  // trash
+  //g_object_set (main_pipe, "message-forward", TRUE, NULL);
+  //g_object_set (GetElement("h264pay0"), "pt", 96, NULL);
+  //g_object_set (GetElement("theorapay0"), "pt", 96, NULL);
+  //g_object_set (b0_sink, "video-sink", "aasink", NULL);
+
+
   // Create the pipes, fill them with elements then save them
   for (auto iter = raw_pipes.begin(); iter != raw_pipes.end(); ++iter) {
-    pipes[iter->first] = gst_pipeline_new(iter->first.c_str());
-    for (auto &element : iter->second) {
-      gst_bin_add(GST_BIN(pipes[iter->first]), GetElement(element));
+    auto &pipe_name = iter->first;
+
+    // Create the new pipe
+    pipes[pipe_name] = gst_pipeline_new(pipe_name.c_str());
+    for (auto &element_name : iter->second) {
+
+      // Check if the elements are declared to avoid adding null elements to the bin
+      if (!GST_IS_ELEMENT(GetElement(element_name))) {
+        g_critical ("Adding invalid element \"%s\" to pipe \"%s\"", element_name.c_str() ,pipe_name.c_str());
+        return false;
+      }
+
+      gst_bin_add(GST_BIN(pipes[pipe_name]), GetElement(element_name));
     }
   }
 
   // Create, fill, and save RTSP pipes
   for (auto iter = raw_rtsp_pipes.begin(); iter != raw_rtsp_pipes.end(); ++iter) {
-    rtsp_pipes[iter->first] = gst_pipeline_new(iter->first.c_str());
-    for (auto &element : iter->second) {
-      gst_bin_add(GST_BIN(rtsp_pipes[iter->first]), GetElement(element));
+    auto &pipe_name = iter->first;
+
+    // Create the new rtsp pipe
+    rtsp_pipes[pipe_name] = gst_pipeline_new(pipe_name.c_str());
+    for (auto &element_name : iter->second) {
+
+      // Check if the elements are declared to avoid adding null elements to the bin
+      if (!GST_IS_ELEMENT(GetElement(element_name))) {
+        g_critical ("Adding invalid element \"%s\" to rtsp-pipe \"%s\"", element_name.c_str() ,pipe_name.c_str());
+        return false;
+      }
+
+      gst_bin_add(GST_BIN(rtsp_pipes[pipe_name]), GetElement(element_name));
     }
   }
 
   // Connect elements
   for (auto &link : raw_links) {
     if (!gst_element_link(GetElement(link.first), GetElement(link.second))) {
-      g_critical ("Unable to link %s to %s\n", link.first.c_str(), link.second.c_str());
+      g_critical ("Unable to link \"%s\" to \"%s\"\n", link.first.c_str(), link.second.c_str());
       return false;
     }
   }
@@ -131,7 +187,7 @@ bool Topology::LoadJson(std::string json) {
     }
   }
 
-  // Connect RTSP pipes
+  // Connect RTSP pipe to another pipe's element
   for (auto iter = raw_rtsp_connections.begin(); iter != raw_rtsp_connections.end(); ++iter) {
 
     std::string dst_pipe_name, dst_last_elem_name, rtsp_first_elem_name;
@@ -149,17 +205,6 @@ bool Topology::LoadJson(std::string json) {
       return false;
     }
   }
-
-  // Set properties
-  // --------------
-  //g_object_set (GetElement("h264pay0"), "pt", 96, "name", "pay0", NULL);
-  //g_object_set (main_pipe, "message-forward", TRUE, NULL);
-  g_object_set (GetElement("h264pay0"), "pt", 96, NULL);
-  g_object_set (GetElement("theorapay0"), "pt", 96, NULL);
-  g_object_set (GetElement("source0"), "pattern", 18, "is-live", TRUE, NULL);
-  //g_object_set (b0_sink, "video-sink", "aasink", NULL);
-  g_object_set(GetElement("valve1"), "drop", FALSE, NULL);
-  g_object_set(GetElement("valve2"), "drop", FALSE, NULL);
 
   return true;
 }

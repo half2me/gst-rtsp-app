@@ -85,7 +85,7 @@ RtspServer::ImportPipeline(GstRTSPMediaFactory *factory, const GstRTSPUrl *url) 
   auto pipe_name = std::string(gst_rtsp_media_factory_get_launch(factory));
   auto url_path = std::string("rtsp://") + url->host + ":" + std::to_string(url->port) + url->abspath;
 
-  g_print("Created media \"%s\" from pipe \"%s\".\n",
+  g_info("Created media \"%s\" from pipe \"%s\".\n",
           url_path.c_str(),
           pipe_name.c_str());
 
