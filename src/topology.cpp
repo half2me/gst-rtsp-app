@@ -1,8 +1,9 @@
-#include <cstdio>
+#include <rapidjson/document.h>
+#include <fstream>
+
 #include "topology.h"
 
 Topology::Topology() {
-
 }
 
 Topology::~Topology() {
@@ -17,7 +18,12 @@ Topology::~Topology() {
 
 bool Topology::LoadJson(std::string json) {
 
-  // TODO read from json
+  rapidjson::Document document;
+  std::ifstream ifs("lofasz.json");
+  std::string content(
+      (std::istreambuf_iterator<char>(ifs)),
+      (std::istreambuf_iterator<char>()));
+  document.Parse(content.c_str());
 
   // TODO Process raw caps here
   GstCaps *main_caps = gst_caps_new_simple(
@@ -49,98 +55,18 @@ bool Topology::LoadJson(std::string json) {
           {"theora_caps", theora_caps}
   };
 
-  raw_elements = {
-      {"source0", "v4l2src"},
-      /*{"scale0", "videoscale"},
-      {"videorate0", "videorate"},
-      */
-      {"tee0", "tee"},
-      {"queue0", "queue"},
-        {"valve0", "valve"},
-        {"convert0", "videoconvert"},
-        {"sink0", "aasink"},
-      {"queue1", "queue"},
-        {"valve1", "valve"},
-        {"scale1", "videoscale"},
-        {"videorate1", "videorate"},
-        {"vaapiproc1", "vaapipostproc"},
-        {"vaapienc1", "vaapih264enc"},
-        {"h264pay1", "rtph264pay"},
-      {"queue2", "queue"},
-        {"valve2", "valve"},
-        {"scale2", "videoscale"},
-        {"videorate2", "videorate"},
-        {"convert2", "videoconvert"},
-        {"theoraenc2", "theoraenc"},
-        {"theorapay2", "rtptheorapay"},
+  // Load, create and store elements
+  // -------------------------------
+  const rapidjson::Value& elements_obj = document["elements"];
 
-      // test
-      {"source_test", "videotestsrc"},
-      {"sink_test", "queue"},
+  for (rapidjson::Value::ConstMemberIterator itr = elements_obj.MemberBegin(); itr != elements_obj.MemberEnd(); ++itr)
+  {
+    const char
+        *elem_name = itr->name.GetString(),
+        *elem_type = itr->value.GetString();
 
-      {"source_rtsp", "valve"},
-      {"conv_rtsp","videoconvert"},
-      {"encode_rtsp", "theoraenc"},
-      {"pay_test", "rtptheorapay"}
-  };
-
-  raw_pipes = {
-      {"main_pipe", {"source0",/* "scale0", "videorate0",*/ "tee0",
-                     "queue0", "valve0", "convert0", "sink0",
-                     "queue1", "valve1",
-                     "queue2", "valve2"}},
-      // test
-      {"pipe_test", {"source_test", "sink_test"}}
-  };
-
-  raw_rtsp_pipes = {
-      {"rtsp_h264", {"scale1", "videorate1", "vaapiproc1", "vaapienc1", "h264pay1"}},
-      {"rtsp_theora", {"scale2", "videorate2", "convert2", "theoraenc2", "theorapay2"}},
-
-      // test
-      {"pipe_rtsp", {"source_rtsp", "conv_rtsp", "encode_rtsp", "pay_test"}}
-  };
-
-  raw_links = {
-      {std::make_tuple("source_test", "sink_test", "")},
-
-      {std::make_tuple("source_rtsp", "conv_rtsp", "")},
-      {std::make_tuple("conv_rtsp", "encode_rtsp", "")},
-      {std::make_tuple("encode_rtsp", "pay_test", "")},
-
-      {std::make_tuple("source0", "tee0", "")},
-      //{std::make_tuple("source0", "scale0", "")}, 
-      // {std::make_tuple("scale0", "videorate0", "")},
-      {std::make_tuple("tee0", "queue0", "")},
-      {std::make_tuple("queue0", "valve0", "")},
-      {std::make_tuple("valve0", "convert0", "")},
-      {std::make_tuple("convert0", "sink0", "")},
-
-      {std::make_tuple("tee0", "queue1", "")},
-      {std::make_tuple("queue1", "valve1", "")},
-      {std::make_tuple("scale1", "videorate1", "")},
-      {std::make_tuple("videorate1", "vaapiproc1", "h264_caps")},
-      {std::make_tuple("vaapiproc1", "vaapienc1", "")},
-      {std::make_tuple("vaapienc1", "h264pay1", "")},
- 
-      {std::make_tuple("tee0", "queue2", "")},
-      {std::make_tuple("queue2", "valve2", "")},
-      {std::make_tuple("scale2", "videorate2", "")},
-      {std::make_tuple("videorate2", "convert2", "")},
-      {std::make_tuple("convert2", "theoraenc2", "theora_caps")},
-      {std::make_tuple("theoraenc2", "theorapay2", "")}
-  };
-
-  raw_rtsp_connections = {
-      {"pipe_rtsp", std::make_tuple("pipe_test", "sink_test", "source_rtsp")},
-      {"rtsp_h264", std::make_tuple("main_pipe", "valve1", "scale1")},
-      {"rtsp_theora", std::make_tuple("main_pipe", "valve2", "scale2")}
-  };
-
-  // Create and save elements
-  for (auto iter = raw_elements.begin(); iter != raw_elements.end(); ++iter) {
-    if (!(elements[iter->first] = gst_element_factory_make(iter->second.c_str(), iter->first.c_str()))) {
-      g_printerr("Element \"%s\" (type: %s) could not be created.\n", iter->first.c_str(), iter->second.c_str());
+    if (!(elements[elem_name] = gst_element_factory_make(elem_type, elem_name))) {
+      g_printerr("Element \"%s\" (type: %s) could not be created.\n", elem_name, elem_type);
       return false;
     }
   }
@@ -168,77 +94,99 @@ bool Topology::LoadJson(std::string json) {
   //g_object_set (b0_sink, "video-sink", "aasink", NULL);
 
 
-  // Create the pipes, fill them with elements then save them
-  for (auto iter = raw_pipes.begin(); iter != raw_pipes.end(); ++iter) {
-    auto &pipe_name = iter->first;
+  // Read and create the pipes, fill them with elements then save them
+  // -----------------------------------------------------------------
+  const rapidjson::Value& json_pipes_obj = document["pipes"];
 
-    // Create the new pipe
-    pipes[pipe_name] = gst_pipeline_new(pipe_name.c_str());
-    for (auto &element_name : iter->second) {
+  for (rapidjson::Value::ConstMemberIterator pipe_itr = json_pipes_obj.MemberBegin();
+       pipe_itr != json_pipes_obj.MemberEnd();
+       ++pipe_itr)
+  {
+    const char *pipe_name = pipe_itr->name.GetString();
+    pipes[pipe_name] = gst_pipeline_new(pipe_name);
 
-      // Check if the elements are declared to avoid adding null elements to the bin
-      if (!GST_IS_ELEMENT(GetElement(element_name))) {
-        g_critical ("Adding invalid element \"%s\" to pipe \"%s\"", element_name.c_str() ,pipe_name.c_str());
-        return false;
-      }
 
-      gst_bin_add(GST_BIN(pipes[pipe_name]), GetElement(element_name));
-    }
-  }
-
-  // Create, fill, and save RTSP pipes
-  for (auto iter = raw_rtsp_pipes.begin(); iter != raw_rtsp_pipes.end(); ++iter) {
-    auto &pipe_name = iter->first;
-
-    // Create the new rtsp pipe
-    rtsp_pipes[pipe_name] = gst_pipeline_new(pipe_name.c_str());
-    for (auto &element_name : iter->second) {
+    for (rapidjson::Value::ConstValueIterator elem_itr = pipe_itr->value.Begin();
+         elem_itr != pipe_itr->value.End();
+         ++elem_itr)
+    {
+      const char *elem_name = elem_itr->GetString();
 
       // Check if the elements are declared to avoid adding null elements to the bin
-      if (!GST_IS_ELEMENT(GetElement(element_name))) {
-        g_critical ("Adding invalid element \"%s\" to rtsp-pipe \"%s\"", element_name.c_str() ,pipe_name.c_str());
+      if (!GST_IS_ELEMENT(GetElement(elem_name))) {
+        g_critical ("Adding invalid element \"%s\" to pipe \"%s\"", elem_name, pipe_name);
         return false;
       }
 
-      gst_bin_add(GST_BIN(rtsp_pipes[pipe_name]), GetElement(element_name));
+      gst_bin_add(GST_BIN(pipes[pipe_name]), GetElement(elem_name));
     }
   }
 
-  for (auto &link : raw_links) {
-    const string& src_name = get<0>(link);
-    const string& dst_name = get<1>(link);
-    const string& cap_name = get<2>(link);
 
-    if (cap_name.empty()) {
-      if (!gst_element_link(GetElement(src_name), GetElement(dst_name))){
-        g_critical ("Unable to link \"%s\" to \"%s\"\n", src_name.c_str(), dst_name.c_str());
-      } 
-    } 
-    else {
-      if (!gst_element_link_filtered(GetElement(src_name), GetElement(get<1>(link)), GetCaps(get<2>(link)))) {
-        g_critical ("Unable to link \"%s\" to \"%s\" using caps \"%s\".\n",
-                    src_name.c_str(), dst_name.c_str(), cap_name.c_str());
+  // Load, create, fill, and save RTSP pipes
+  // ---------------------------------------
+  const rapidjson::Value& json_rtsp_pipes_obj = document["rtsp_pipes"];
+
+  for (rapidjson::Value::ConstMemberIterator pipe_itr = json_rtsp_pipes_obj.MemberBegin();
+       pipe_itr != json_rtsp_pipes_obj.MemberEnd();
+       ++pipe_itr)
+  {
+    const char *pipe_name = pipe_itr->name.GetString();
+    rtsp_pipes[pipe_name] = gst_pipeline_new(pipe_name);
+
+    for (rapidjson::Value::ConstValueIterator elem_itr = pipe_itr->value.Begin();
+         elem_itr != pipe_itr->value.End();
+         ++elem_itr)
+    {
+      const char
+          *elem_name = elem_itr->GetString();
+
+      // Check if the elements are declared to avoid adding null elements to the bin
+      if (!GST_IS_ELEMENT(GetElement(elem_name))) {
+        g_critical ("Adding invalid element \"%s\" to pipe \"%s\"", elem_name ,pipe_name);
         return false;
       }
+
+      gst_bin_add(GST_BIN(rtsp_pipes[pipe_name]), GetElement(elem_name));
     }
   }
 
-  // Connect RTSP pipe to another pipe's element
-  for (auto iter = raw_rtsp_connections.begin(); iter != raw_rtsp_connections.end(); ++iter) {
+  // Load connections and link elements
+  // ----------------------------------
+  const rapidjson::Value& json_links_arr = document["links"];
 
-    const string &pipe_name = iter->first, 
-        &dst_pipe_name = get<0>(iter->second),
-        &dst_last_elem_name = get<1>(iter->second),
-        &rtsp_first_elem_name = get<2>(iter->second);
+  for (rapidjson::Value::ConstValueIterator itr = json_links_arr.Begin(); itr != json_links_arr.End(); ++itr)
+  {
+    const char
+        *src_name = (*itr)["src"].GetString(),
+        *dst_name = (*itr)["dst"].GetString();
+
+    if (!gst_element_link(GetElement(src_name), GetElement(dst_name)))
+    {
+      g_critical ("Unable to link \"%s\" to \"%s\"\n", src_name, dst_name);
+      return false;
+    }
+  }
+
+  // RTSP pipe connections
+  // ---------------------
+  const rapidjson::Value& json_rtsp_connections_obj = document["rtsp_connections"];
+
+  for (rapidjson::Value::ConstMemberIterator pipe_itr = json_rtsp_connections_obj.MemberBegin();
+       pipe_itr != json_rtsp_connections_obj.MemberEnd();
+       ++pipe_itr)
+  {
+    const char *pipe_name = pipe_itr->name.GetString(),
+        *dst_pipe_name = pipe_itr->value["dst_pipe"].GetString(),
+        *dst_last_elem_name = pipe_itr->value["dst_last_elem"].GetString(),
+        *rtsp_first_elem_name = pipe_itr->value["rtsp_first_elem"].GetString();
 
     if (!ConnectRtspPipe(rtsp_pipes[pipe_name],
                          pipes[dst_pipe_name],
                          elements[dst_last_elem_name],
                          elements[rtsp_first_elem_name]))
     {
-      g_critical ("Unable to link pipe %s to %s\n",
-                  dst_pipe_name.c_str(),
-                  pipe_name.c_str());
+      g_critical ("Unable to link pipe %s to %s\n", pipe_name, dst_pipe_name);
 
       return false;
     }
@@ -292,7 +240,7 @@ Topology::ConnectRtspPipe(GstElement *rtsp_pipe,
 }
 
 GstElement *Topology::GetPipe(std::string name) {
-  return pipes[name];
+  return pipes.at(name);
 }
 
 std::map<std::string, GstElement *> &Topology::GetPipes() {
@@ -300,7 +248,7 @@ std::map<std::string, GstElement *> &Topology::GetPipes() {
 };
 
 GstElement *Topology::GetRtspPipe(std::string name) {
-  return rtsp_pipes[name];
+  return rtsp_pipes.at(name);
 };
 
 std::map<std::string, GstElement *> &Topology::GetRtspPipes() {
@@ -308,7 +256,7 @@ std::map<std::string, GstElement *> &Topology::GetRtspPipes() {
 };
 
 GstElement *Topology::GetElement(std::string name) {
-  return elements[name];
+  return elements.at(name);
 }
 
 std::map<std::string, GstElement *> &Topology::GetElements() {
@@ -316,7 +264,7 @@ std::map<std::string, GstElement *> &Topology::GetElements() {
 };
 
 GstCaps *Topology::GetCaps(string name) {
-  return caps[name];
+  return caps.at(name);
 }
 
 gboolean Topology::LinkToTee(GstElement *tee, GstElement *element) {

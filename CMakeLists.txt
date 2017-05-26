@@ -14,9 +14,12 @@ PKG_CHECK_MODULES(GST REQUIRED # for available packages see 'pkg-config --list-a
   gstreamer-rtsp-server-1.0
 )
 
+# RapidJSON
+PKG_CHECK_MODULES([RAPIDJSON], [RapidJSON >= 1.0])
 
 include_directories(PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${RAPIDJSON_INCLUDE_DIRS}
   ${GST_INCLUDE_DIRS}
 )
 link_libraries(

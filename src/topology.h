@@ -45,15 +45,8 @@ public:
   map<string, GstElement*> rtsp_pipes;
   map<string, GstCaps*> caps;
 
-  // json string dictionaries
-  map<string, string> raw_elements;
-  map<string, vector<string>> raw_pipes;
-  map<string, vector<string>> raw_rtsp_pipes;
-
-  map<string, tuple<string, string, string>> raw_rtsp_connections;
   map<string, vector<string>> raw_properties;
   map<string, vector<string>> raw_caps;
 
-  vector<tuple<string, string, string>> raw_links;
 
 };
