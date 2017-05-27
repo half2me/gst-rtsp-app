@@ -29,24 +29,8 @@ link_libraries(
 # App target
 add_executable(${CMAKE_PROJECT_NAME} "")
 target_sources(${CMAKE_PROJECT_NAME}
-  PRIVATE
-    src/main.cpp
-    src/server.cpp
-    src/topology.cpp
-)
-
-# Tools
-set(APP_NAME "YuvPlayer")
-add_executable(${APP_NAME} "")
-target_sources(${APP_NAME}
-  PRIVATE
-    src/PlayCT1YUV422.c
-    src/rtsp-server.c
-)
-
-set(APP_NAME "appsrc")
-add_executable(${APP_NAME} "")
-target_sources(${APP_NAME}
-  PRIVATE
-    src/appsrc.c
-)
+        PRIVATE
+        src/main.cpp
+        src/server.cpp
+        src/topology.cpp
+        src/logger.cpp)

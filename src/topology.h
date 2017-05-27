@@ -1,11 +1,14 @@
 #pragma once
 
+#define JSON_TAG_ELEMENTS "elements"
+#define JSON_TAG_CONNECTIONS "connections"
+#define JSON_TAG_PIPES "pipes"
+#define JSON_TAG_RTSP_PIPES "rtsp"
+
 #include "gst/gst.h"
 #include <string>
 #include <map>
 #include <vector>
-#include <tuple>
-#include <utility>
 
 using namespace std;
 
@@ -15,21 +18,21 @@ public:
   Topology();
   ~Topology();
 
-  bool LoadJson(string json);
+  bool LoadJson(const std::string &json);
 
-  GstElement* GetPipe(string name);
-  map<string, GstElement*>& GetPipes();
+  GstElement* GetPipe(const string& name);
 
-  GstElement* GetRtspPipe(string name);
-  map<string, GstElement*>& GetRtspPipes();
+  const map<string, GstElement*>& GetPipes();
 
-  GstElement* GetElement(string name);
-  map<string, GstElement*>& GetElements();
+  const map<string, GstElement*>& GetRtspPipes();
+
+  GstElement* GetElement(const string& name);
+
+  const map<string, GstElement*>& GetElements();
 
   GstCaps* GetCaps(string name);
 
- private:
-
+private:
   // Connects an element to a tee, creating a new branch on it
   static gboolean LinkToTee(GstElement* tee, GstElement* element);
 
@@ -39,7 +42,20 @@ public:
                        GstElement *source_end_point,
                        GstElement *rtsp_start_point);
 
-  // instances
+  bool ConnectElements(const string& src_name, const string& dst_name);
+
+
+  bool CreateElement(const char* elem_name, const char* elem_type);
+  bool CreateElement(const string& elem_name, const string& elem_type);
+
+  bool SetElement(const string& name, GstElement *element);
+
+  bool SetPipe(const string& name, GstElement* element);
+
+  bool IsElementValid(const string& elemname);
+
+  bool IsPipeValid(const string& elem_name);
+
   map<string, GstElement*> elements;
   map<string, GstElement*> pipes;
   map<string, GstElement*> rtsp_pipes;

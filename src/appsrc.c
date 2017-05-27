@@ -85,8 +85,8 @@ int main(int argc, char *argv[]) {
 
   b1_scale = gst_element_factory_make ("videoscale", "b1_scale");
   b1_videorate = gst_element_factory_make ("videorate", "b1_videorate");
-  b1_vaapiproc = gst_element_factory_make ("vaapipostproc", "b1_vaapiproc");
-  b1_vaapienc = gst_element_factory_make ("vaapih264enc", "b1_vaapienc");
+  b1_vaapiproc = gst_element_factory_make ("videoconvert", "b1_vaapiproc");
+  b1_vaapienc = gst_element_factory_make ("x264enc", "b1_vaapienc");
   b1_pay = gst_element_factory_make ("rtph264pay", "pay0");
   if ( !b1_scale || !b1_videorate || !b1_vaapiproc || !b1_vaapienc || !b1_pay ) {
     g_printerr ("Not all elements could be created in Branch1(RTSP, h264).\n");

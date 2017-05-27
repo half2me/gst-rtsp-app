@@ -4,27 +4,37 @@
 
 #include "server.h"
 
-#define TEST_TYPE_RTSP_MEDIA_FACTORY (test_rtsp_media_factory_get_type ())
-GType test_rtsp_media_factory_get_type(void);
+GST_DEBUG_CATEGORY_STATIC (gst_app_rtsp);  // define debug category (statically)
+#define GST_CAT_DEFAULT gst_app_rtsp       // set as default
 
-struct TestRTSPMediaFactoryClass {
+#define APP_TYPE_RTSP_MEDIA_FACTORY (app_rtsp_media_factory_get_type ())
+GType app_rtsp_media_factory_get_type(void);
+
+struct AppRTSPMediaFactoryClass {
   GstRTSPMediaFactoryClass parent;
 };
 
-struct TestRTSPMediaFactory {
+struct AppRTSPMediaFactory {
   GstRTSPMediaFactory parent;
 };
 
 std::map<std::string, GstElement *> RtspServer::rtsp_pipes = std::map<std::string, GstElement *>();
 
 RtspServer::RtspServer() {
+
+  GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "GST_APP_RTSP",
+                           GST_DEBUG_FG_YELLOW, "RTSP Server");
+
   gst_rtsp_server = gst_rtsp_server_new();
   gst_rtsp_server_set_service(gst_rtsp_server, "8554");
   gst_rtsp_server_source = 0;
+
+  // add a timeout for the session cleanup
+  g_timeout_add_seconds(2, (GSourceFunc) SessionPoolTimeout, gst_rtsp_server);
 }
 
 RtspServer::~RtspServer() {
-  g_print("Destroy RTSP server\n");
+  GST_INFO("Stop RTSP Server");
   g_source_remove(gst_rtsp_server_source);
   g_object_unref(gst_rtsp_server);
 }
@@ -32,37 +42,22 @@ RtspServer::~RtspServer() {
 gboolean
 RtspServer::Start() {
 
-  g_print("RTSP Server init...\n");
-
-  // add a timeout for the session cleanup
-  g_timeout_add_seconds(2, (GSourceFunc) SessionPoolTimeout, gst_rtsp_server);
+  GST_INFO("RTSP Server init...");
 
   gst_rtsp_server_source = gst_rtsp_server_attach(gst_rtsp_server, NULL);
   if (gst_rtsp_server_source == 0) {
-    g_print("Failed to attach the server\n");
+    GST_ERROR("Failed to attach the server!");
     return FALSE;
   }
 
   return TRUE;
 }
 
-void
-RtspServer::Stop() {
-  g_print("Stopping RTSP Server\n");
-
-// TODO Probably RTSP Pipelines are destroyed by gst_server, but who knows...
-//  for (int for_i=0; for_i<MAX_RTSP_PIPES; for_i++) {
-//    if (rtsp_pipes[for_i]) {
-//      gst_object_unref (rtsp_pipes[for_i]);
-//    }
-//  }
-}
-
 gboolean RtspServer::RegisterRtspPipes(const std::map<std::string, GstElement *> &pipes) {
   for (auto iter = pipes.begin(); iter != pipes.end(); ++iter) {
     auto pipe_name = iter->first;
 
-    GstRTSPMediaFactory *factory = (GstRTSPMediaFactory *) g_object_new(TEST_TYPE_RTSP_MEDIA_FACTORY, NULL);
+    GstRTSPMediaFactory *factory = (GstRTSPMediaFactory *) g_object_new(APP_TYPE_RTSP_MEDIA_FACTORY, NULL);
     GstRTSPMountPoints *mount = gst_rtsp_server_get_mount_points(gst_rtsp_server);
 
     // use the launch string for the mediafactory to identify the pipe
@@ -89,7 +84,7 @@ RtspServer::ImportPipeline(GstRTSPMediaFactory *factory, const GstRTSPUrl *url) 
   auto pipe_name = std::string(gst_rtsp_media_factory_get_launch(factory));
   auto url_path = std::string("rtsp://") + url->host + ":" + std::to_string(url->port) + url->abspath;
 
-  g_info("Created media \"%s\" from pipe \"%s\".\n",
+  GST_DEBUG("Created media \"%s\" from pipe \"%s\".",
           url_path.c_str(),
           pipe_name.c_str());
 
@@ -101,7 +96,7 @@ RtspServer::CreateMediaPipe(GstRTSPMediaFactory *factory, GstRTSPMedia *media) {
 
   auto pipe_name = gst_rtsp_media_factory_get_launch(factory);
   if (!pipe_name) {
-    g_critical("Error creating media pipe for \"%s\"!\n",
+    GST_ERROR("Error creating media pipe for \"%s\"!",
                gst_element_get_name(gst_rtsp_media_get_element(media)));
 
     return NULL;
@@ -134,22 +129,22 @@ RtspServer::StateChange(GstRTSPMedia *media, gint arg1, gpointer user_data) {
   GstElement *element = gst_rtsp_media_get_element(media);
   GstState state;
   gst_element_get_state(element, &state, NULL, 0);
-  g_print("%s: %s\n", gst_element_get_name(element), gst_element_state_get_name(state));
+  GST_INFO("%s: %s\n", gst_element_get_name(element), gst_element_state_get_name(state));
 }
 
-G_DEFINE_TYPE (TestRTSPMediaFactory, test_rtsp_media_factory,
+G_DEFINE_TYPE (AppRTSPMediaFactory, app_rtsp_media_factory,
                GST_TYPE_RTSP_MEDIA_FACTORY);
 
 static void
-test_rtsp_media_factory_class_init(TestRTSPMediaFactoryClass *test_klass) {
+app_rtsp_media_factory_class_init(AppRTSPMediaFactoryClass *test_klass) {
   GstRTSPMediaFactoryClass *mf_klass =
       (GstRTSPMediaFactoryClass *) (test_klass);
   mf_klass->create_element = RtspServer::ImportPipeline;
   mf_klass->create_pipeline = RtspServer::CreateMediaPipe;
 
-  g_print("Custom MediaFactory initialized.\n");
+  GST_DEBUG("Custom MediaFactory initialized.\n");
 }
 
 static void
-test_rtsp_media_factory_init(TestRTSPMediaFactory *factory) {
+app_rtsp_media_factory_init(AppRTSPMediaFactory *factory) {
 }

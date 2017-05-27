@@ -12,7 +12,6 @@ public:
   ~RtspServer();
 
   gboolean Start();
-  void Stop();
 
   gboolean RegisterRtspPipes(const std::map<std::string, GstElement*>& pipes);
 
