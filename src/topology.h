@@ -1,9 +1,10 @@
 #pragma once
 
 #define JSON_TAG_ELEMENTS "elements"
-#define JSON_TAG_CONNECTIONS "connections"
+#define JSON_TAG_LINKS "links"
 #define JSON_TAG_PIPES "pipes"
-#define JSON_TAG_RTSP_PIPES "rtsp"
+#define JSON_TAG_RTSP "rtsp"
+#define JSON_TAG_CONNECTIONS "connections"
 
 #include "gst/gst.h"
 #include <string>
@@ -32,30 +33,30 @@ public:
 
   GstCaps* GetCaps(string name);
 
-private:
-  // Connects an element to a tee, creating a new branch on it
-  static gboolean LinkToTee(GstElement* tee, GstElement* element);
 
   // Converts a pipe to use with the Gst RTSP Server
-  bool ConnectRtspPipe(GstElement *rtsp_pipe,
-                       GstElement *source_pipe,
-                       GstElement *source_end_point,
-                       GstElement *rtsp_start_point);
+  bool ConnectPipe(const char *pipe,
+                   const char *start_point,
+                   const char *source_pipe,
+                   const char *source_end_point);
 
   bool ConnectElements(const string& src_name, const string& dst_name);
 
+  // Connects an element to a tee, creating a new branch on it
+  static gboolean LinkToTee(GstElement* tee, GstElement* element);
 
   bool CreateElement(const char* elem_name, const char* elem_type);
   bool CreateElement(const string& elem_name, const string& elem_type);
 
+  bool CreatePipeline(const char* elem_name);
+
   bool SetElement(const string& name, GstElement *element);
-
   bool SetPipe(const string& name, GstElement* element);
+  bool HasElement(const string &elemname);
+  bool HasPipe(const string &elem_name);
+  bool AddElementToBin (const string& elem_name, const string& pipe_name);
 
-  bool IsElementValid(const string& elemname);
-
-  bool IsPipeValid(const string& elem_name);
-
+private:
   map<string, GstElement*> elements;
   map<string, GstElement*> pipes;
   map<string, GstElement*> rtsp_pipes;

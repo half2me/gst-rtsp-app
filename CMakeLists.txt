@@ -1,36 +1,45 @@
 cmake_minimum_required(VERSION 3.5)
 project(gst-rtsp-app VERSION 1.0.0)
 add_definitions(-DVERSION=\"${PROJECT_VERSION}\")
+include(FindPkgConfig)
 
 #set(CMAKE_BUILD_TYPE Release)
 #set(CMAKE_VERBOSE_MAKEFILE on)
-set (CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 11)
 
-# GST: Find it using pkg-config
-include(FindPkgConfig)
-PKG_CHECK_MODULES(GST REQUIRED # for available packages see 'pkg-config --list-all | grep gst'
-  gstreamer-1.0
-  gstreamer-net-1.0
-  gstreamer-rtsp-server-1.0
+# GST
+PKG_CHECK_MODULES(
+        GST REQUIRED # for available packages see 'pkg-config --list-all | grep gst'
+        gstreamer-1.0
+        gstreamer-net-1.0
+        gstreamer-rtsp-server-1.0
 )
 
 # RapidJSON
-PKG_CHECK_MODULES([RAPIDJSON], [RapidJSON >= 1.0])
-
-include_directories(PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/src
-  ${RAPIDJSON_INCLUDE_DIRS}
-  ${GST_INCLUDE_DIRS}
+PKG_CHECK_MODULES(
+        [RAPIDJSON], [RapidJSON >= 1.0]
 )
+
+include_directories(
+        PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${RAPIDJSON_INCLUDE_DIRS}
+        ${GST_INCLUDE_DIRS}
+)
+
 link_libraries(
-  ${GST_LDFLAGS}
+        ${GST_LDFLAGS}
 )
 
 # App target
-add_executable(${CMAKE_PROJECT_NAME} "")
-target_sources(${CMAKE_PROJECT_NAME}
-        PRIVATE
+add_executable(
+        ${CMAKE_PROJECT_NAME} ""
+)
+
+target_sources(
+        ${CMAKE_PROJECT_NAME} PRIVATE
         src/main.cpp
         src/server.cpp
         src/topology.cpp
-        src/logger.cpp)
+        src/logger.cpp
+)

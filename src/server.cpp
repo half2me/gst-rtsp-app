@@ -4,8 +4,8 @@
 
 #include "server.h"
 
-GST_DEBUG_CATEGORY_STATIC (gst_app_rtsp);  // define debug category (statically)
-#define GST_CAT_DEFAULT gst_app_rtsp       // set as default
+#define GST_CAT_DEFAULT log_app_rtsp
+GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
 
 #define APP_TYPE_RTSP_MEDIA_FACTORY (app_rtsp_media_factory_get_type ())
 GType app_rtsp_media_factory_get_type(void);
@@ -22,8 +22,8 @@ std::map<std::string, GstElement *> RtspServer::rtsp_pipes = std::map<std::strin
 
 RtspServer::RtspServer() {
 
-  GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "GST_APP_RTSP",
-                           GST_DEBUG_FG_YELLOW, "RTSP Server");
+  GST_DEBUG_CATEGORY_INIT (log_app_rtsp, "GST_APP_RTSP",
+                           GST_DEBUG_FG_CYAN, "RTSP Server");
 
   gst_rtsp_server = gst_rtsp_server_new();
   gst_rtsp_server_set_service(gst_rtsp_server, "8554");
@@ -84,7 +84,7 @@ RtspServer::ImportPipeline(GstRTSPMediaFactory *factory, const GstRTSPUrl *url) 
   auto pipe_name = std::string(gst_rtsp_media_factory_get_launch(factory));
   auto url_path = std::string("rtsp://") + url->host + ":" + std::to_string(url->port) + url->abspath;
 
-  GST_DEBUG("Created media \"%s\" from pipe \"%s\".",
+  GST_INFO("Created media \"%s\" from pipe \"%s\".",
           url_path.c_str(),
           pipe_name.c_str());
 

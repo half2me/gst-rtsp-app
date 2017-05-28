@@ -4,10 +4,9 @@
 #include "server.h"
 #include "logger.h"
 
-
 // Local log category
-#define GST_CAT_DEFAULT gst_app_main       // set as default
-GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);  // define debug category (statically)
+#define GST_CAT_DEFAULT log_app_main
+GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
 
 GMainLoop *main_loop = NULL;
 guint msg_watch = 0;
@@ -84,7 +83,7 @@ static gboolean MessageHandler(GstBus * bus, GstMessage * msg, gpointer user_dat
       goto printMessage;
 
     printMessage:
-      GST_LOG(gst_debug_category_get_name(GST_CAT_DEFAULT), msg_level,
+      GST_LOG(gst_debug_category_get_name(log_app_main), msg_level,
               "Message received from element %s: %s\nDebugging information: %s",
               GST_OBJECT_NAME (msg->src), err->message, debug_info ? debug_info : "none");
 
@@ -109,7 +108,7 @@ static gboolean MessageHandler(GstBus * bus, GstMessage * msg, gpointer user_dat
     case GST_MESSAGE_STREAM_STATUS: {
       GstStreamStatusType stream_status;
       gst_message_parse_stream_status(msg, &stream_status, NULL);
-      GST_INFO("%s: %s", GST_OBJECT_NAME(msg->src), gst_stream_status_string(stream_status));
+      GST_INFO("Stream[%s]: %s", GST_OBJECT_NAME(msg->src), gst_stream_status_string(stream_status));
       break;
     }
 
@@ -179,10 +178,12 @@ int main(int argc, char *argv[]) {
   // Initialize GStreamer
   gst_init (&argc, &argv);
 
-  Logger::CreateCategory(GST_CAT_DEFAULT, "GST_APP_MAIN",
-                            GST_DEBUG_FG_BLUE, "Main application");
+  GST_DEBUG_CATEGORY_INIT (
+    GST_CAT_DEFAULT, "GST_APP_MAIN", GST_DEBUG_FG_GREEN, "Main application"
+  );
 
   Logger::Init();
+
 
   // Load pipeline definition
   topology = new Topology();
