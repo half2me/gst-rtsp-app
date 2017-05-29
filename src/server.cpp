@@ -19,6 +19,7 @@ struct AppRTSPMediaFactory {
 };
 
 std::map<std::string, GstElement *> RtspServer::rtsp_pipes = std::map<std::string, GstElement *>();
+std::map<std::string, GstRTSPMedia *> RtspServer::medias = std::map<std::string, GstRTSPMedia *>();
 
 RtspServer::RtspServer() {
 
@@ -84,7 +85,7 @@ RtspServer::ImportPipeline(GstRTSPMediaFactory *factory, const GstRTSPUrl *url) 
   auto pipe_name = std::string(gst_rtsp_media_factory_get_launch(factory));
   auto url_path = std::string("rtsp://") + url->host + ":" + std::to_string(url->port) + url->abspath;
 
-  GST_INFO("Created media \"%s\" from pipe \"%s\".",
+  GST_INFO("Building media \"%s\" from pipe \"%s\".",
           url_path.c_str(),
           pipe_name.c_str());
 
@@ -93,6 +94,9 @@ RtspServer::ImportPipeline(GstRTSPMediaFactory *factory, const GstRTSPUrl *url) 
 
 GstElement *
 RtspServer::CreateMediaPipe(GstRTSPMediaFactory *factory, GstRTSPMedia *media) {
+
+  GST_LOG ("Try to create media pipe \"%s\"",
+           gst_element_get_name(gst_rtsp_media_get_element(media)));
 
   auto pipe_name = gst_rtsp_media_factory_get_launch(factory);
   if (!pipe_name) {
@@ -111,6 +115,9 @@ RtspServer::CreateMediaPipe(GstRTSPMediaFactory *factory, GstRTSPMedia *media) {
 
   // Watch state changes
   g_signal_connect (media, "new-state", G_CALLBACK(StateChange), NULL);
+
+  // TODO very temporary
+  medias[pipe_name] = media;
 
   return pipeline;
 }

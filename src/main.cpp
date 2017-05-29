@@ -153,6 +153,14 @@ static gboolean KeyboardHandler(GIOChannel *source, GIOCondition cond, gpointer 
       g_object_set (topology->GetElement("source0"), "led-power", led, NULL);
       break;
 
+    case 'w':
+      gst_rtsp_media_set_pipeline_state(server->medias["RtspPipe0"], GST_STATE_PLAYING);
+      break;
+
+    case 'e':
+      gst_rtsp_media_set_pipeline_state(server->medias["RtspPipe0"], GST_STATE_PAUSED);
+      break;
+
     case 'g':
       g_object_set(topology->GetElement("valve1"), "drop", FALSE, NULL);
       g_object_set(topology->GetElement("valve2"), "drop", FALSE, NULL);
@@ -214,10 +222,10 @@ int main(int argc, char *argv[]) {
   g_io_add_watch(io_stdin, G_IO_IN, (GIOFunc) KeyboardHandler, NULL);
 
   // Start playing
-  if (gst_element_set_state(topology->GetPipe("TestPipe0"), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
-    GST_ERROR ("Unable to set the main pipeline to the playing state.");
-    Stop();
-  }
+//  if (gst_element_set_state(topology->GetPipe("TestPipe0"), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+//    GST_ERROR ("Unable to set the main pipeline to the playing state.");
+//    Stop();
+//  }
 
   // Create a GLib Main Loop and set it to run
   main_loop = g_main_loop_new (NULL, FALSE);

@@ -1,0 +1,45 @@
+{
+  "elements": {
+    "TestSource0": "videotestsrc",
+    "VideoScale0": "videoscale",
+    "CapsFilter0": "capsfilter",
+    "TestSink0": "aasink",
+
+    "RTSPSource0": "v4l2src",
+    "RTSPTee0": "tee",
+    "RTSPQueue0": "queue",
+    "RTSPConv0": "videoconvert",
+    "RTSPSink0": "xvimagesink",
+    "RTSPQueue1": "queue",
+    "RTSPConv1": "videoconvert",
+    "RTSPEnc0": "theoraenc",
+    "RTSPTee1": "tee",
+    "pay0": "rtptheorapay",
+    "pay1": "rtptheorapay"
+  },
+
+  "pipes": {
+    "TestPipe0": ["TestSource0", "TestSink0"],
+    "RtspPipe0": ["RTSPSource0", "RTSPTee0", "RTSPQueue0", "RTSPConv0", "RTSPSink0",
+                                             "RTSPQueue1", "RTSPConv1", "RTSPEnc0", "RTSPTee1", "pay0",
+                                                                                                "pay1"]
+  },
+
+  "rtsp": ["RtspPipe0"],
+
+  "links": [
+    {"src": "TestSource0", "dst": "TestSink0"},
+
+    {"src": "RTSPSource0", "dst": "RTSPTee0"},
+    {"src": "RTSPTee0", "dst": "RTSPQueue0"},
+    {"src": "RTSPQueue0", "dst": "RTSPConv0"},
+    {"src": "RTSPConv0", "dst": "RTSPSink0"},
+    {"src": "RTSPTee0", "dst": "RTSPQueue1"},
+    {"src": "RTSPQueue1", "dst": "RTSPConv1"},
+    {"src": "RTSPConv1", "dst": "RTSPEnc0"},
+    {"src": "RTSPEnc0", "dst": "RTSPTee1"},
+    {"src": "RTSPTee1", "dst": "pay0"},
+    {"src": "RTSPTee1", "dst": "pay1"}
+
+  ]
+}
