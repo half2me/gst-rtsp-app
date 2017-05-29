@@ -17,7 +17,7 @@ Topology::~Topology() {
     GstElement *pipe = pipepair.second;
     auto &pipe_name = pipepair.first;
 
-//    if (rtsp_pipes.find(pipe_name) == rtsp_pipes.end()) {
+    if (rtsp_pipes.find(pipe_name) == rtsp_pipes.end()) {
       if (GST_IS_PIPELINE(pipe)) {
         GST_INFO("Destroy pipeline: \"%s\"", pipe_name.c_str());
         gst_element_set_state(pipe, GST_STATE_NULL);
@@ -25,7 +25,7 @@ Topology::~Topology() {
       } else {
         GST_ERROR("Destroy pipeline \"%s\": Not a valid pipe!", pipe_name.c_str());
       }
-//    }
+    }
   }
 }
 
@@ -42,9 +42,9 @@ bool Topology::LoadJson(const std::string &json) {
   // Load, create and store elements
   // -------------------------------
   if (document.HasMember(JSON_TAG_ELEMENTS)) {
-    const rapidjson::Value &elements_obj = document[JSON_TAG_ELEMENTS];
-
     GST_LOG("Reading elements from json");
+
+    const rapidjson::Value &elements_obj = document[JSON_TAG_ELEMENTS];
 
     for (rapidjson::Value::ConstMemberIterator itr = elements_obj.MemberBegin();
          itr != elements_obj.MemberEnd(); ++itr) {
@@ -67,8 +67,8 @@ bool Topology::LoadJson(const std::string &json) {
   // Some settings needs to be done before pipe initialization
   // --------------
 
-  // rename pays for the dumb rtsp server
-  //g_object_set (GetElement("h264pay1"), "pt", 96, "name", "pay0", NULL);
+  // it changes the gst-name so rtspmedia picks it up
+  g_object_set (GetElement("pay1"), "pt", 96, "name", "pay0", NULL);
   //g_object_set (GetElement("theorapay2"), "pt", 96, "name", "pay0", NULL);
   //g_object_set (GetElement("pay_test"), "pt", 96, "name", "pay0", NULL);
 
@@ -89,9 +89,9 @@ bool Topology::LoadJson(const std::string &json) {
   // Read and create the pipes, fill them with elements then save them
   // -----------------------------------------------------------------
   if (document.HasMember(JSON_TAG_PIPES)) {
-    const rapidjson::Value &json_pipes_obj = document[JSON_TAG_PIPES];
-
     GST_LOG("Reading pipelines from json");
+
+    const rapidjson::Value &json_pipes_obj = document[JSON_TAG_PIPES];
 
     for (rapidjson::Value::ConstMemberIterator pipe_itr = json_pipes_obj.MemberBegin();
          pipe_itr != json_pipes_obj.MemberEnd();
@@ -102,12 +102,14 @@ bool Topology::LoadJson(const std::string &json) {
       if (!CreatePipeline(pipe_name)) {
         return false;
       }
+      GST_TRACE("Creating pipeline \"%s\"", pipe_name);
 
       for (rapidjson::Value::ConstValueIterator elem_itr = pipe_itr->value.Begin();
            elem_itr != pipe_itr->value.End();
            ++elem_itr) {
         const char *elem_name = elem_itr->GetString();
 
+        GST_TRACE("Adding element \"%s\" to \"%s\"", elem_name, pipe_name);
         if (!AddElementToBin(elem_name, pipe_name)) {
           return false;
         }
@@ -118,18 +120,22 @@ bool Topology::LoadJson(const std::string &json) {
     return false;
   }
 
-  // Load connections and link elements
+  // Read and save list of RTSP Pipes
   // ----------------------------------
   if (document.HasMember(JSON_TAG_RTSP)) {
+    GST_LOG("Reading RTSP Pipes from JSON...");
+
     const rapidjson::Value &json_rtsp_arr = document[JSON_TAG_RTSP];
 
     for (rapidjson::Value::ConstValueIterator itr = json_rtsp_arr.Begin(); itr != json_rtsp_arr.End(); ++itr) {
       const char *pipe_name = itr->GetString();
 
       if (!HasPipe(pipe_name)) {
+        GST_ERROR("Can't create RTSP pipe from \"%s\": Pipe does not exists", pipe_name);
         return false;
       }
 
+      GST_LOG("\"%s\" is marked as RTSP Pipe.", pipe_name);
       rtsp_pipes[pipe_name]= pipes[pipe_name];
     }
   }
@@ -137,6 +143,8 @@ bool Topology::LoadJson(const std::string &json) {
     // Load connections and link elements
   // ----------------------------------
   if (document.HasMember(JSON_TAG_LINKS)) {
+    GST_LOG("Reading element connections from json");
+
     const rapidjson::Value &json_links_arr = document[JSON_TAG_LINKS];
 
     for (rapidjson::Value::ConstValueIterator itr = json_links_arr.Begin(); itr != json_links_arr.End(); ++itr) {
@@ -171,9 +179,6 @@ bool Topology::LoadJson(const std::string &json) {
         GST_ERROR ("Unable to link pipe %s to %s", pipe_name, dst_pipe_name);
         return false;
       }
-
-      // Mark the pipe as RTSP pipe
-      rtsp_pipes[pipe_name] = pipes[pipe_name];
     }
   }
 
@@ -206,7 +211,7 @@ Topology::ConnectPipe(const char *pipe,
     return false;
   }
 
-  auto pipe_name = std::string(gst_element_get_name(pipe));
+  auto pipe_name = std::string(pipe);
 
   // create gateway pairs
   GstElement* intersink = gst_element_factory_make(
@@ -224,8 +229,8 @@ Topology::ConnectPipe(const char *pipe,
   g_object_set(intersink, "channel", gateway_name.c_str(), NULL);
   g_object_set(intersrc, "channel", gateway_name.c_str(), NULL);
 
-  gst_bin_add(GST_BIN (GetElement(source_pipe)), intersink);
-  gst_bin_add(GST_BIN (GetElement(pipe)), intersrc);
+  gst_bin_add(GST_BIN (GetPipe(source_pipe)), intersink);
+  gst_bin_add(GST_BIN (GetPipe(pipe)), intersrc);
 
   // link the portals
   if (!gst_element_link(GetElement(source_end_point), intersink)

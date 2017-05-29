@@ -132,16 +132,16 @@ static gboolean KeyboardHandler(GIOChannel *source, GIOCondition cond, gpointer 
 
   switch (g_ascii_tolower (str[0])) {
 
+    case 'p':
+      gst_element_set_state (topology->GetPipe("TestPipe"), GST_STATE_PLAYING);
+      break;
+
     case '[':
-      gst_element_set_state (topology->GetPipe("TestPipe0"), GST_STATE_PAUSED);
+      gst_element_set_state (topology->GetPipe("TestPipe"), GST_STATE_PAUSED);
       break;
 
     case ']':
-      gst_element_set_state (topology->GetPipe("TestPipe0"), GST_STATE_PLAYING);
-      break;
-
-    case ' ':
-      gst_element_set_state (topology->GetPipe("TestPipe0"), GST_STATE_READY);
+      gst_element_set_state (topology->GetPipe("TestPipe"), GST_STATE_READY);
       break;
 
     case 'q':
@@ -150,26 +150,42 @@ static gboolean KeyboardHandler(GIOChannel *source, GIOCondition cond, gpointer 
 
     case 'l':
       led = !led;
-      g_object_set (topology->GetElement("source0"), "led-power", led, NULL);
+      g_object_set (topology->GetElement("MainSource"), "led-power", led, NULL);
       break;
 
     case 'w':
-      gst_rtsp_media_set_pipeline_state(server->medias["RtspPipe0"], GST_STATE_PLAYING);
+      gst_element_set_state (topology->GetPipe("MainPipe"), GST_STATE_PLAYING);
       break;
 
     case 'e':
-      gst_rtsp_media_set_pipeline_state(server->medias["RtspPipe0"], GST_STATE_PAUSED);
+      gst_element_set_state (topology->GetPipe("MainPipe"), GST_STATE_PAUSED);
       break;
 
-    case 'g':
-      g_object_set(topology->GetElement("valve1"), "drop", FALSE, NULL);
-      g_object_set(topology->GetElement("valve2"), "drop", FALSE, NULL);
+    case 'r':
+      gst_element_set_state (topology->GetPipe("MainPipe"), GST_STATE_READY);
       break;
 
-    case 'h':
-      g_object_set(topology->GetElement("valve1"), "drop", TRUE, NULL);
-      g_object_set(topology->GetElement("valve2"), "drop", TRUE, NULL);
+    case 'a':
+      gst_element_set_state (topology->GetPipe("ViewPipe"), GST_STATE_PLAYING);
       break;
+
+    case 's':
+      gst_element_set_state (topology->GetPipe("ViewPipe"), GST_STATE_PAUSED);
+      break;
+
+    case 'd':
+      gst_element_set_state (topology->GetPipe("ViewPipe"), GST_STATE_READY);
+      break;
+
+//    case 'g':
+//      g_object_set(topology->GetElement("valve1"), "drop", FALSE, NULL);
+//      g_object_set(topology->GetElement("valve2"), "drop", FALSE, NULL);
+//      break;
+//
+//    case 'h':
+//      g_object_set(topology->GetElement("valve1"), "drop", TRUE, NULL);
+//      g_object_set(topology->GetElement("valve2"), "drop", TRUE, NULL);
+//      break;
 
     default:
       break;
@@ -195,10 +211,29 @@ int main(int argc, char *argv[]) {
 
   // Load pipeline definition
   topology = new Topology();
-  if (!topology->LoadJson("test.json")) {
+  if (!topology->LoadJson("../test.json")) {
     GST_ERROR ("Can't build pipeline hierarchy from definitions. Quit.");
     Stop();
   }
+
+  GstBus *bus;
+
+  // attach messagehandler
+  bus  = gst_pipeline_get_bus (GST_PIPELINE (topology->GetPipe("TestPipe")));
+  msg_watch = gst_bus_add_watch (bus, MessageHandler, NULL);
+  gst_object_unref (bus);
+
+  // attach messagehandler
+  bus  = gst_pipeline_get_bus (GST_PIPELINE (topology->GetPipe("MainPipe")));
+  msg_watch = gst_bus_add_watch (bus, MessageHandler, NULL);
+  gst_object_unref (bus);
+//
+//  // attach messagehandler
+//  bus  = gst_pipeline_get_bus (GST_PIPELINE (topology->GetPipe("ViewPipe")));
+//  msg_watch = gst_bus_add_watch (bus, MessageHandler, NULL);
+//  gst_object_unref (bus);
+
+
 
   // Create the server
   server = new RtspServer();
@@ -208,10 +243,6 @@ int main(int argc, char *argv[]) {
   }
   server->Start();
 
-  // attach messagehandler
-  GstBus *main_bus  = gst_pipeline_get_bus (GST_PIPELINE (topology->GetPipe("TestPipe0")));
-  msg_watch = gst_bus_add_watch (main_bus, MessageHandler, NULL);
-  gst_object_unref (main_bus);
 
   // User keypresses
 #ifdef G_OS_WIN32
@@ -221,8 +252,14 @@ int main(int argc, char *argv[]) {
 #endif
   g_io_add_watch(io_stdin, G_IO_IN, (GIOFunc) KeyboardHandler, NULL);
 
+
   // Start playing
-//  if (gst_element_set_state(topology->GetPipe("TestPipe0"), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+  if (gst_element_set_state(topology->GetPipe("MainPipe"), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+    GST_ERROR ("Unable to set the main pipeline to the playing state.");
+    Stop();
+  }
+//
+//  if (gst_element_set_state(topology->GetPipe("ViewPipe"), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
 //    GST_ERROR ("Unable to set the main pipeline to the playing state.");
 //    Stop();
 //  }
