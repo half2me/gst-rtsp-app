@@ -63,6 +63,27 @@ bool Topology::LoadJson(const std::string &json) {
     return false;
   }
 
+  // TODO Set element properties here!!!
+  // Some settings needs to be done before pipe initialization
+  // --------------
+
+  // it changes the gst-name so rtspmedia picks it up
+  gst_element_set_name(GetElement("Pay0"), "pay0");
+  gst_element_set_name(GetElement("Pay1"), "pay0");
+
+  // I <3 Roseek
+  //g_object_set (GetElement("source0"), "resolution", 5, NULL);
+  //g_object_set (GetElement("source0"), "led-power", FALSE, NULL);
+
+  // set fancy ball for test stream
+  g_object_set (GetElement("TestSource"), "pattern", 18, "is-live", TRUE, NULL);
+
+  // trash
+  //g_object_set (main_pipe, "message-forward", TRUE, NULL);
+  //g_object_set (b0_sink, "video-sink", "aasink", NULL);
+  //g_object_set (GetElement("pay1"), "pt", 96, "name", "pay0", NULL);
+
+
 
   // Load, create and store caps
   // -------------------------------
@@ -82,43 +103,12 @@ bool Topology::LoadJson(const std::string &json) {
         return false;
       }
     }
-
   }
-
-/*
-  // TODO Parse json of caps
-  GstCaps *main_caps = gst_caps_new_simple(
-    "video/x-raw",
-    "width", G_TYPE_INT, 640,
-    "height", G_TYPE_INT, 480,
-    "framerate", GST_TYPE_FRACTION, 15, 1,
-    NULL
-  );
-*/
-  // TODO Set element properties here!!!
-  // Some settings needs to be done before pipe initialization
-  // --------------
-
-  // it changes the gst-name so rtspmedia picks it up
-  g_object_set (GetElement("pay1"), "pt", 96, "name", "pay0", NULL);
+  // TODO manual assignment...
   g_object_set (GetElement("MainFilter"), "caps", GetCaps("MainCaps"), NULL);
-
-  //g_object_set (GetElement("theorapay2"), "pt", 96, "name", "pay0", NULL);
-  //g_object_set (GetElement("pay_test"), "pt", 96, "name", "pay0", NULL);
-
-  // I <3 Roseek
-  //g_object_set (GetElement("source0"), "resolution", 5, NULL);
-  //g_object_set (GetElement("source0"), "led-power", FALSE, NULL);
-
-  // set fancy ball for test stream
-  //g_object_set (GetElement("source_test"), "pattern", 18, "is-live", TRUE, NULL);
-
-  // trash
-  //g_object_set (main_pipe, "message-forward", TRUE, NULL);
-  //g_object_set (GetElement("h264pay0"), "pt", 96, NULL);
-  //g_object_set (GetElement("theorapay0"), "pt", 96, NULL);
-  //g_object_set (b0_sink, "video-sink", "aasink", NULL);
-
+  g_object_set (GetElement("ViewFilter"), "caps", GetCaps("ViewCaps"), NULL);
+  g_object_set (GetElement("Filter0"), "caps", GetCaps("Caps0"), NULL);
+  g_object_set (GetElement("Filter1"), "caps", GetCaps("Caps1"), NULL);
 
   // Read and create the pipes, fill them with elements then save them
   // -----------------------------------------------------------------
@@ -226,7 +216,7 @@ Topology::ConnectPipe(const char *pipe,
                       const char *source_end_point)
 {
   if (!HasPipe(pipe)) {
-    GST_ERROR("Pipe \"%s\" does not exist!", pipe);
+    GST_ERROR("MagicPipe \"%s\" does not exist!", pipe);
     return false;
   }
 
@@ -252,10 +242,14 @@ Topology::ConnectPipe(const char *pipe,
       "intervideosink", ("intersink_" + pipe_name).c_str());
 
   GstElement* intersrc = gst_element_factory_make(
-      "intervideosrc", ("intersrc_" + pipe_name).c_str());
+    "intervideosrc", ("intersrc_" + pipe_name).c_str());
 
-  if (!intersink || !intersrc) {
-    GST_ERROR("Error creating intervideo pair of pipe \"%s\"", pipe);
+  // jaffar at the 12. level, he is the magic itself
+  GstElement* queue = gst_element_factory_make(
+    "queue", ("queue_" + pipe_name).c_str());
+
+  if (!intersink || !intersrc || !queue) {
+    GST_ERROR("Error creating intervideo pair for pipe \"%s\"", pipe);
     return FALSE;
   }
 
@@ -263,15 +257,30 @@ Topology::ConnectPipe(const char *pipe,
   g_object_set(intersink, "channel", gateway_name.c_str(), NULL);
   g_object_set(intersrc, "channel", gateway_name.c_str(), NULL);
 
-  gst_bin_add(GST_BIN (GetPipe(source_pipe)), intersink);
-  gst_bin_add(GST_BIN (GetPipe(pipe)), intersrc);
+  // TODO temp - server wont build it
+  if (!HasRtspPipe(pipe_name)) {
+    GST_FIXME("Creating intervideo pair of pipe \"%s\"", pipe);
+    if (!gst_bin_add(GST_BIN (GetPipe(source_pipe)), queue)
+        || !gst_bin_add(GST_BIN (GetPipe(source_pipe)), intersink)
+        || !gst_element_link_many(GetElement(source_end_point), queue, intersink, NULL))
+    {
+      GST_ERROR("Can't make work the magic gateway! Try with shift+l...");
+      return FALSE;
+    }
+  }
 
-  // link the portals
-  if (!gst_element_link(GetElement(source_end_point), intersink)
+  // link the other side of the portals
+  if (!gst_bin_add(GST_BIN (GetPipe(pipe)), intersrc)
       || !gst_element_link(intersrc, GetElement(start_point)))
   {
-    GST_ERROR("Can't make work the magic gateway!");
+    GST_ERROR("Can't make work the magic gateway! Try with -megahit...");
     return FALSE;
+  }
+
+  // TODO Temporary
+  if (HasRtspPipe(pipe_name)) {
+    intersinks[pipe_name] = intersink;
+    queues[pipe_name] = queue;
   }
 
   return TRUE;
@@ -474,14 +483,27 @@ bool Topology::CreateFilter(const char *filter_name, const char *filter_def) {
   }
 
   GST_DEBUG ("Loaded cap \"%s\": %" GST_PTR_FORMAT, filter_name, filter);
-
-  //g_print("\n%s\n", gst_caps_to_string (cap.second));
-
   caps[filter_name] = filter;
 
   return true;
 }
 
 bool Topology::HasFilter(const string &elem_name) {
-  return pipes.find(elem_name) != pipes.end();;
+  return pipes.find(elem_name) != pipes.end();
 }
+
+bool Topology::HasRtspPipe(const string &elem_name) {
+  return rtsp_pipes.find(elem_name) != rtsp_pipes.end();
+}
+
+/*
+GstCaps *cap = gst_caps_new_simple(
+  "video/x-raw",
+  "format", G_TYPE_STRING, "NV21",
+  "width", G_TYPE_INT, 640,
+  "height", G_TYPE_INT, 480,
+  "framerate", GST_TYPE_FRACTION, 30, 1,
+  NULL
+);
+g_print("\n%s\n", gst_caps_to_string (cap));
+*/

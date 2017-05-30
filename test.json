@@ -4,37 +4,48 @@
     "TestSink": "aasink",
 
     "MainSource": "v4l2src",
+    "MainRate": "videorate",
     "MainScale": "videoscale",
     "MainFilter": "capsfilter",
     "MainTee": "tee",
 
-    "ViewQueue": "queue",
+    "ViewRate": "videorate",
+    "ViewScale": "videoscale",
     "ViewConv": "videoconvert",
+    "ViewFilter": "capsfilter",
     "ViewSink": "xvimagesink",
 
-    "RtspQueue0": "queue",
-    "RtspConv0": "videoconvert",
-    "RtspEnc0": "theoraenc",
-    "pay0": "rtptheorapay",
+    "Rate0": "videorate",
+    "Scale0": "videoscale",
+    "Conv0": "videoconvert",
+    "Filter0": "capsfilter",
+    "Enc0": "x264enc",
+    "Pay0": "rtph264pay",
 
-    "RtspQueue1": "queue",
-    "RtspConv1": "videoconvert",
-    "RtspEnc1": "x264enc",
-    "pay1": "rtph264pay"
+    "Rate1": "videorate",
+    "Scale1": "videoscale",
+    "Conv1": "videoconvert",
+    "Filter1": "capsfilter",
+    "Enc1": "theoraenc",
+    "Pay1": "rtptheorapay"
 
   },
 
   "filters": {
-    "MainCaps": "video/x-raw, width=(int)640, height=(int)480, framerate=(fraction)15/1"
+    "MainCaps": "video/x-raw,width=(int)640,height=(int)480,framerate=(fraction)15/1",
+    "ViewCaps": "video/x-raw, width=(int)320, height=(int)240, framerate=(fraction)15/1",
+    "Caps0": "video/x-raw,width=(int)640,height=(int)480,framerate=(fraction)15/1,pixel-aspect-ratio=(fraction)4/3, interlace-mode=(string)progressive",
+    "Caps1": "video/x-raw,width=(int)640,height=(int)480,framerate=(fraction)25/2,pixel-aspect-ratio=(fraction)4/3, interlace-mode=(string)progressive"
   },
 
   "pipes": {
     "TestPipe": ["TestSource", "TestSink"],
 
-    "MainPipe": ["MainSource", "MainScale", "MainFilter", "MainTee",
-                 "ViewQueue", "ViewConv", "ViewSink", "RtspQueue0", "RtspQueue1"],
-    "theora": ["RtspConv0", "RtspEnc0", "pay0"],
-    "h264": ["RtspConv1", "RtspEnc1", "pay1"]
+    "MainPipe": ["MainSource", "MainRate", "MainScale", "MainFilter", "MainTee"],
+    "ViewPipe": ["ViewRate", "ViewScale", "ViewConv", "ViewFilter", "ViewSink"],
+
+    "h264": ["Rate0", "Scale0", "Conv0", "Filter0", "Enc0", "Pay0"],
+    "theora": ["Rate1", "Scale1", "Conv1", "Filter1", "Enc1", "Pay1"]
   },
 
   "rtsp": ["theora", "h264"],
@@ -42,32 +53,42 @@
   "links": [
     {"src": "TestSource", "dst": "TestSink"},
 
-    {"src": "MainSource", "dst": "MainScale"},
+    {"src": "MainSource", "dst": "MainRate"},
+    {"src": "MainRate", "dst": "MainScale"},
     {"src": "MainScale", "dst": "MainFilter"},
     {"src": "MainFilter", "dst": "MainTee"},
 
-    {"src": "MainTee", "dst": "ViewQueue"},
-    {"src": "MainTee", "dst": "RtspQueue0"},
-    {"src": "MainTee", "dst": "RtspQueue1"},
+    {"src": "ViewRate",  "dst": "ViewScale"},
+    {"src": "ViewScale", "dst": "ViewConv"},
+    {"src": "ViewConv", "dst": "ViewFilter"},
+    {"src": "ViewFilter", "dst": "ViewSink"},
 
-    {"src": "ViewQueue", "dst": "ViewConv"},
-    {"src": "ViewConv", "dst": "ViewSink"},
+    {"src": "Rate0",  "dst": "Scale0"},
+    {"src": "Scale0", "dst": "Conv0"},
+    {"src": "Conv0", "dst": "Filter0"},
+    {"src": "Filter0", "dst": "Enc0"},
+    {"src": "Enc0", "dst": "Pay0"},
 
-    {"src": "RtspConv0", "dst": "RtspEnc0"},
-    {"src": "RtspEnc0", "dst": "pay0"},
-
-    {"src": "RtspConv1", "dst": "RtspEnc1"},
-    {"src": "RtspEnc1", "dst": "pay1"}
+    {"src": "Rate1",  "dst": "Scale1"},
+    {"src": "Scale1", "dst": "Conv1"},
+    {"src": "Conv1", "dst": "Filter1"},
+    {"src": "Filter1", "dst": "Enc1"},
+    {"src": "Enc1", "dst": "Pay1"}
   ],
 
   "connections": {
-    "theora": {
-      "first_elem": "RtspConv0",
+    "ViewPipe": {
+      "first_elem": "ViewRate",
       "src_pipe": "MainPipe",
       "src_last_elem": "MainTee"
     },
     "h264": {
-      "first_elem": "RtspConv1",
+      "first_elem": "Rate0",
+      "src_pipe": "MainPipe",
+      "src_last_elem": "MainTee"
+    },
+    "theora": {
+      "first_elem": "Rate1",
       "src_pipe": "MainPipe",
       "src_last_elem": "MainTee"
     }

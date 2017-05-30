@@ -20,6 +20,10 @@ struct AppRTSPMediaFactory {
 
 std::map<std::string, GstElement *> RtspServer::rtsp_pipes = std::map<std::string, GstElement *>();
 std::map<std::string, GstRTSPMedia *> RtspServer::medias = std::map<std::string, GstRTSPMedia *>();
+std::map<std::string, GstElement *> RtspServer::intersinks = std::map<std::string, GstElement *>();
+std::map<std::string, GstElement *> RtspServer::queues = std::map<std::string, GstElement *>();
+GstElement* RtspServer::TODO_tee = NULL;
+GstElement* RtspServer::TODO_pipe = NULL;
 
 RtspServer::RtspServer() {
 
@@ -43,6 +47,8 @@ RtspServer::~RtspServer() {
 gboolean
 RtspServer::Start() {
 
+  // TODO start ony once
+
   GST_INFO("RTSP Server init...");
 
   gst_rtsp_server_source = gst_rtsp_server_attach(gst_rtsp_server, NULL);
@@ -50,7 +56,20 @@ RtspServer::Start() {
     GST_ERROR("Failed to attach the server!");
     return FALSE;
   }
+/*
+  GST_DEBUG("Destroying RTSP Pipe connector elements");
+  for (const auto & pipe_name : rtsp_pipes) {
+    GstElement
+      *intersink = intersinks.at(pipe_name.first),
+      *queue = queues.at(pipe_name.first);
 
+    gst_element_set_state(intersink, GST_STATE_NULL);
+    gst_element_set_state(queue, GST_STATE_NULL);
+
+    gst_object_ref(queue);
+    gst_object_ref(queue);
+  }
+*/
   return TRUE;
 }
 
@@ -136,7 +155,46 @@ RtspServer::StateChange(GstRTSPMedia *media, gint arg1, gpointer user_data) {
   GstElement *element = gst_rtsp_media_get_element(media);
   GstState state;
   gst_element_get_state(element, &state, NULL, 0);
-  GST_INFO("%s: %s\n", gst_element_get_name(element), gst_element_state_get_name(state));
+  GST_INFO("%s => %s", gst_element_get_name(element), gst_element_state_get_name(state));
+
+  if (state == GST_STATE_PLAYING) {
+    GST_INFO("Linking \"%s\" to main tee\n", gst_element_get_name(element));
+    GstElement* intersink = intersinks.at(gst_element_get_name(element));
+    GstElement* queue = queues.at(gst_element_get_name(element));
+
+    if (!gst_bin_add(GST_BIN (TODO_pipe), queue)
+        || !gst_bin_add(GST_BIN (TODO_pipe), intersink))
+    {
+      GST_ERROR("Linking \"%s\": failed to add elements to source pipe!\n",
+                gst_element_get_name(element));
+      return;
+    };
+
+    gst_element_sync_state_with_parent(intersink);
+    gst_element_sync_state_with_parent(queue);
+
+    if (!gst_element_link_many(TODO_tee, queue, intersink, NULL))
+    {
+      GST_ERROR("Linking elements in \"%s\" is failed!\n", gst_element_get_name(element));
+      return;
+    }
+  }
+
+  if (state == GST_STATE_NULL) {
+    GST_INFO("Unlinking from main tee: %s\n", gst_element_get_name(element));
+    GstElement* intersink = intersinks.at(gst_element_get_name(element));
+    GstElement* queue = queues.at(gst_element_get_name(element));
+    //gst_element_set_state(intersink, GST_STATE_NULL);
+    //gst_element_set_state(queue, GST_STATE_NULL);
+    gst_element_unlink(intersink, TODO_tee);
+
+    gst_object_ref(intersink);
+    gst_object_ref(queue);
+
+    gst_bin_remove(GST_BIN (TODO_pipe), intersink);
+    gst_bin_remove(GST_BIN (TODO_pipe), queue);
+  }
+
 }
 
 G_DEFINE_TYPE (AppRTSPMediaFactory, app_rtsp_media_factory,

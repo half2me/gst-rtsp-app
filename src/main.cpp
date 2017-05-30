@@ -98,7 +98,7 @@ static gboolean MessageHandler(GstBus * bus, GstMessage * msg, gpointer user_dat
     case GST_MESSAGE_STATE_CHANGED:
       if (GST_IS_PIPELINE(msg->src)) {
         gst_message_parse_state_changed (msg, NULL, &state, NULL);
-        GST_INFO ("%s: %s", GST_MESSAGE_SRC_NAME(msg), gst_element_state_get_name (state));
+        GST_INFO ("%s => %s", GST_MESSAGE_SRC_NAME(msg), gst_element_state_get_name (state));
       } else {
         GST_DEBUG("State change received from element %s:\n[ %s ]",
                   GST_OBJECT_NAME(msg->src),
@@ -229,19 +229,26 @@ int main(int argc, char *argv[]) {
   gst_object_unref (bus);
 
   // attach messagehandler
-//  bus  = gst_pipeline_get_bus (GST_PIPELINE (topology->GetPipe("ViewPipe")));
-//  msg_watch = gst_bus_add_watch (bus, MessageHandler, NULL);
-//  gst_object_unref (bus);
+  bus  = gst_pipeline_get_bus (GST_PIPELINE (topology->GetPipe("ViewPipe")));
+  msg_watch = gst_bus_add_watch (bus, MessageHandler, NULL);
+  gst_object_unref (bus);
 
 
 
   // Create the server
-//  server = new RtspServer();
-//  if (!server->RegisterRtspPipes(topology->GetRtspPipes())) {
-//    GST_ERROR ("Can't create server RTSP pipeline. Quit.");
-//    Stop();
-//  }
-//  server->Start();
+  server = new RtspServer();
+  if (!server->RegisterRtspPipes(topology->GetRtspPipes())) {
+    GST_ERROR ("Can't create server RTSP pipeline. Quit.");
+    Stop();
+  }
+
+  // TODO -
+  server->intersinks = topology->intersinks;
+  server->queues = topology->queues;
+  server->TODO_tee = topology->GetElement("MainTee");
+  server->TODO_pipe = topology->GetPipe("MainPipe");
+
+  server->Start();
 
 
   // User keypresses
@@ -258,11 +265,11 @@ int main(int argc, char *argv[]) {
     GST_ERROR ("Unable to set the main pipeline to the playing state.");
     Stop();
   }
-//
-//  if (gst_element_set_state(topology->GetPipe("ViewPipe"), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
-//    GST_ERROR ("Unable to set the main pipeline to the playing state.");
-//    Stop();
-//  }
+
+  if (gst_element_set_state(topology->GetPipe("ViewPipe"), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+    GST_ERROR ("Unable to set the main pipeline to the playing state.");
+    Stop();
+  }
 
   // Create a GLib Main Loop and set it to run
   main_loop = g_main_loop_new (NULL, FALSE);

@@ -57,8 +57,11 @@ public:
   bool SetPipe(const string& name, GstElement* element);
   bool HasElement(const string &elemname);
   bool HasPipe(const string &elem_name);
+  bool HasRtspPipe(const string &elem_name);
   bool HasFilter(const string &elem_name);
   bool AddElementToBin (const string& elem_name, const string& pipe_name);
+  map<string, GstElement*> intersinks;
+  map<string, GstElement*> queues;
 
 private:
   map<string, GstElement*> elements;

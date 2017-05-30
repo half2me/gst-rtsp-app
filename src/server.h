@@ -27,7 +27,11 @@ public:
   static GstElement * ImportPipeline (GstRTSPMediaFactory * factory, const GstRTSPUrl * url);
   static GstElement * CreateMediaPipe(GstRTSPMediaFactory *factory, GstRTSPMedia *media);
   static std::map<std::string, GstElement*> rtsp_pipes;
-  static std:: map<std::string, GstRTSPMedia*> medias;
+  static std::map<std::string, GstRTSPMedia*> medias;
+  static std::map<std::string, GstElement*> intersinks;
+  static std::map<std::string, GstElement*> queues;
+  static GstElement* TODO_tee;
+  static GstElement* TODO_pipe;
 
 private:
   // this timeout is periodically run to clean up the expired rtsp sessions from the pool.
