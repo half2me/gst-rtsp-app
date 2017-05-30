@@ -63,12 +63,46 @@ bool Topology::LoadJson(const std::string &json) {
     return false;
   }
 
-  // Set element properties here!!!
+
+  // Load, create and store caps
+  // -------------------------------
+  if (document.HasMember(JSON_TAG_FILTERS)) {
+    GST_LOG("Reading caps from json");
+
+    const rapidjson::Value &caps_obj = document[JSON_TAG_FILTERS];
+
+    for (rapidjson::Value::ConstMemberIterator itr = caps_obj.MemberBegin();
+         itr != caps_obj.MemberEnd(); ++itr) {
+
+      const char
+        *filter_name = itr->name.GetString(),
+        *filter_definition = itr->value.GetString();
+
+      if (!CreateFilter(filter_name, filter_definition)) {
+        return false;
+      }
+    }
+
+  }
+
+/*
+  // TODO Parse json of caps
+  GstCaps *main_caps = gst_caps_new_simple(
+    "video/x-raw",
+    "width", G_TYPE_INT, 640,
+    "height", G_TYPE_INT, 480,
+    "framerate", GST_TYPE_FRACTION, 15, 1,
+    NULL
+  );
+*/
+  // TODO Set element properties here!!!
   // Some settings needs to be done before pipe initialization
   // --------------
 
   // it changes the gst-name so rtspmedia picks it up
   g_object_set (GetElement("pay1"), "pt", 96, "name", "pay0", NULL);
+  g_object_set (GetElement("MainFilter"), "caps", GetCaps("MainCaps"), NULL);
+
   //g_object_set (GetElement("theorapay2"), "pt", 96, "name", "pay0", NULL);
   //g_object_set (GetElement("pay_test"), "pt", 96, "name", "pay0", NULL);
 
@@ -102,14 +136,14 @@ bool Topology::LoadJson(const std::string &json) {
       if (!CreatePipeline(pipe_name)) {
         return false;
       }
-      GST_TRACE("Creating pipeline \"%s\"", pipe_name);
+      GST_LOG("Creating pipeline \"%s\"", pipe_name);
 
       for (rapidjson::Value::ConstValueIterator elem_itr = pipe_itr->value.Begin();
            elem_itr != pipe_itr->value.End();
            ++elem_itr) {
         const char *elem_name = elem_itr->GetString();
 
-        GST_TRACE("Adding element \"%s\" to \"%s\"", elem_name, pipe_name);
+        GST_LOG("Adding element \"%s\" to \"%s\"", elem_name, pipe_name);
         if (!AddElementToBin(elem_name, pipe_name)) {
           return false;
         }
@@ -386,41 +420,6 @@ bool Topology::HasPipe(const string &elem_name) {
   return pipes.find(elem_name) != pipes.end();
 }
 
-/*
-// TODO Process raw caps here
-GstCaps *main_caps = gst_caps_new_simple(
-  "video/x-raw",
-  "width", G_TYPE_INT, 640,
-  "height", G_TYPE_INT, 480,
-  "framerate", GST_TYPE_FRACTION, 15, 1,
-  NULL
-);
-
-GstCaps *h264_caps = gst_caps_new_simple(
-  "video/x-raw",
-  "width", G_TYPE_INT, 640,
-  "height", G_TYPE_INT, 480,
-  "framerate", GST_TYPE_FRACTION, 15, 1,
-  NULL
-);
-
-GstCaps *theora_caps = gst_caps_new_simple(
-  "video/x-raw",
-  "width", G_TYPE_INT, 640,
-  "height", G_TYPE_INT, 480,
-  "framerate", GST_TYPE_FRACTION, 25, 2,
-  NULL
-);
-
-caps = {{"main_caps",   main_caps},
-        {"h264_caps",   h264_caps},
-        {"theora_caps", theora_caps}
-};
-
-GstCaps *Topology::GetCaps(string name) {
-  return caps.at(name);
-}
-*/
 gboolean Topology::LinkToTee(GstElement *tee, GstElement *element) {
 
   // Get the source pad template of the tee element
@@ -447,4 +446,42 @@ gboolean Topology::LinkToTee(GstElement *tee, GstElement *element) {
   gst_object_unref(tee_queue_pad);
 
   return TRUE;
+}
+
+GstCaps *Topology::GetCaps(const string& name) {
+
+  GST_TRACE("Getting caps \"%s\"", name.c_str());
+
+  return caps.at(name);
+  // for unref
+  // return gst_caps_copy(caps.at(name));
+}
+
+bool Topology::CreateFilter(const char *filter_name, const char *filter_def) {
+
+  if (HasFilter(filter_name)) {
+    GST_ERROR("Can't create filter \"%s\": it already exists.", filter_name);
+    return false;
+  }
+
+  GST_LOG("Creating filter \"%s\"", filter_name);
+
+  GstCaps *filter = gst_caps_from_string(filter_def);
+
+  if (!filter) {
+    GST_ERROR("Filter \"%s\" could not be created.", filter_name);
+    return false;
+  }
+
+  GST_DEBUG ("Loaded cap \"%s\": %" GST_PTR_FORMAT, filter_name, filter);
+
+  //g_print("\n%s\n", gst_caps_to_string (cap.second));
+
+  caps[filter_name] = filter;
+
+  return true;
+}
+
+bool Topology::HasFilter(const string &elem_name) {
+  return pipes.find(elem_name) != pipes.end();;
 }

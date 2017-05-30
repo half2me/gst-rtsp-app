@@ -1,25 +1,25 @@
 {
   "elements": {
     "TestSource": "videotestsrc",
-    "TestSink": "aasink",
+    "TestSink": "xvimagesink",
 
-    "MainSource": "videotestsrc",
+    "MainSource": "v4l2src",
     "MainScale": "videoscale",
     "MainFilter": "capsfilter",
-    "MainTee": "tee",
+    "MainTee": "xvimagesink",
 
-    "ViewQueue": "queue",
+    "ViewQueue": "videotestsrc",
     "ViewConv": "videoconvert",
-    "ViewSink": "xvimagesink",
+    "ViewSink": "aasink",
 
-    "RtspQueue0": "queue",
+    "RtspQueue0": "videotestsrc",
     "RtspConv0": "videoconvert",
     "RtspEnc0": "theoraenc",
     "pay0": "rtptheorapay",
 
-    "RtspQueue1": "queue",
-    "RtspConv1": "vaapipostproc",
-    "RtspEnc1": "vaapih264enc",
+    "RtspQueue1": "videotestsrc",
+    "RtspConv1": "videoconvert",
+    "RtspEnc1": "x264enc",
     "pay1": "rtph264pay"
 
   },
@@ -53,23 +53,5 @@
     {"src": "RtspQueue1", "dst": "RtspConv1"},
     {"src": "RtspConv1", "dst": "RtspEnc1"},
     {"src": "RtspEnc1", "dst": "pay1"}
-  ],
-
-  "connections": {
-    "ViewPipe": {
-      "first_elem": "ViewQueue",
-      "src_pipe": "MainPipe",
-      "src_last_elem": "MainTee"
-    },
-    "theora": {
-      "first_elem": "RtspQueue0",
-      "src_pipe": "MainPipe",
-      "src_last_elem": "MainTee"
-    },
-    "h264": {
-      "first_elem": "RtspQueue1",
-      "src_pipe": "MainPipe",
-      "src_last_elem": "MainTee"
-    }
-  }
+  ]
 }

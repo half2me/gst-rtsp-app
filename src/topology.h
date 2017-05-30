@@ -1,6 +1,7 @@
 #pragma once
 
 #define JSON_TAG_ELEMENTS "elements"
+#define JSON_TAG_FILTERS "filters"
 #define JSON_TAG_LINKS "links"
 #define JSON_TAG_PIPES "pipes"
 #define JSON_TAG_RTSP "rtsp"
@@ -31,7 +32,7 @@ public:
 
   const map<string, GstElement*>& GetElements();
 
-  GstCaps* GetCaps(string name);
+  GstCaps* GetCaps(const string& name);
 
 
   // Converts a pipe to use with the Gst RTSP Server
@@ -48,12 +49,15 @@ public:
   bool CreateElement(const char* elem_name, const char* elem_type);
   bool CreateElement(const string& elem_name, const string& elem_type);
 
+  bool CreateFilter(const char *filter_name, const char *filter_def);
+
   bool CreatePipeline(const char* elem_name);
 
   bool SetElement(const string& name, GstElement *element);
   bool SetPipe(const string& name, GstElement* element);
   bool HasElement(const string &elemname);
   bool HasPipe(const string &elem_name);
+  bool HasFilter(const string &elem_name);
   bool AddElementToBin (const string& elem_name, const string& pipe_name);
 
 private:

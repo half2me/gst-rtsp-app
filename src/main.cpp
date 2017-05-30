@@ -108,7 +108,7 @@ static gboolean MessageHandler(GstBus * bus, GstMessage * msg, gpointer user_dat
     case GST_MESSAGE_STREAM_STATUS: {
       GstStreamStatusType stream_status;
       gst_message_parse_stream_status(msg, &stream_status, NULL);
-      GST_INFO("Stream[%s]: %s", GST_OBJECT_NAME(msg->src), gst_stream_status_string(stream_status));
+      GST_DEBUG("Stream[%s]: %s", GST_OBJECT_NAME(msg->src), gst_stream_status_string(stream_status));
       break;
     }
 
@@ -227,8 +227,8 @@ int main(int argc, char *argv[]) {
   bus  = gst_pipeline_get_bus (GST_PIPELINE (topology->GetPipe("MainPipe")));
   msg_watch = gst_bus_add_watch (bus, MessageHandler, NULL);
   gst_object_unref (bus);
-//
-//  // attach messagehandler
+
+  // attach messagehandler
 //  bus  = gst_pipeline_get_bus (GST_PIPELINE (topology->GetPipe("ViewPipe")));
 //  msg_watch = gst_bus_add_watch (bus, MessageHandler, NULL);
 //  gst_object_unref (bus);
@@ -236,12 +236,12 @@ int main(int argc, char *argv[]) {
 
 
   // Create the server
-  server = new RtspServer();
-  if (!server->RegisterRtspPipes(topology->GetRtspPipes())) {
-    GST_ERROR ("Can't create server RTSP pipeline. Quit.");
-    Stop();
-  }
-  server->Start();
+//  server = new RtspServer();
+//  if (!server->RegisterRtspPipes(topology->GetRtspPipes())) {
+//    GST_ERROR ("Can't create server RTSP pipeline. Quit.");
+//    Stop();
+//  }
+//  server->Start();
 
 
   // User keypresses
