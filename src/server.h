@@ -30,6 +30,7 @@ public:
   static std::map<std::string, GstRTSPMedia*> medias;
   static std::map<std::string, GstElement*> intersinks;
   static std::map<std::string, GstElement*> queues;
+  static std::map<std::string, bool> rtsp_active;
   static GstElement* TODO_tee;
   static GstElement* TODO_pipe;
 

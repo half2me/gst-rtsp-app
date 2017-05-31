@@ -1,6 +1,10 @@
 #include <rapidjson/document.h>
 #include <fstream>
 
+// TODO
+#define DEF_HTML_IP "192.168.10.152"
+#define  DEF_HTML_PORT 5050
+
 #include "topology.h"
 
 GST_DEBUG_CATEGORY_STATIC (log_app_topology);  // define debug category (statically)
@@ -72,11 +76,14 @@ bool Topology::LoadJson(const std::string &json) {
   gst_element_set_name(GetElement("Pay1"), "pay0");
 
   // I <3 Roseek
-  //g_object_set (GetElement("source0"), "resolution", 5, NULL);
-  //g_object_set (GetElement("source0"), "led-power", FALSE, NULL);
+  // g_object_set (GetElement("MainSource"), "resolution", 3, NULL);
+  g_object_set (GetElement("MainSource"), "led-power", FALSE, NULL);
 
   // set fancy ball for test stream
   g_object_set (GetElement("TestSource"), "pattern", 18, "is-live", TRUE, NULL);
+
+  // tcpserver
+  g_object_set (GetElement("WebSink"), "host", DEF_HTML_IP, "port", DEF_HTML_PORT, NULL);
 
   // trash
   //g_object_set (main_pipe, "message-forward", TRUE, NULL);
@@ -107,6 +114,7 @@ bool Topology::LoadJson(const std::string &json) {
   // TODO manual assignment...
   g_object_set (GetElement("MainFilter"), "caps", GetCaps("MainCaps"), NULL);
   g_object_set (GetElement("ViewFilter"), "caps", GetCaps("ViewCaps"), NULL);
+  g_object_set (GetElement("WebFilter"), "caps", GetCaps("WebCaps"), NULL);
   g_object_set (GetElement("Filter0"), "caps", GetCaps("Caps0"), NULL);
   g_object_set (GetElement("Filter1"), "caps", GetCaps("Caps1"), NULL);
 
@@ -447,7 +455,7 @@ gboolean Topology::LinkToTee(GstElement *tee, GstElement *element) {
 
   // Link the tee to the queue
   if (gst_pad_link(tee_queue_pad, queue_tee_pad) != GST_PAD_LINK_OK) {
-    GST_ERROR ("Tee and %s could not be linked.\n", gst_element_get_name(element));
+    GST_ERROR ("Tee and %s could not be linked.", gst_element_get_name(element));
     return FALSE;
   }
 

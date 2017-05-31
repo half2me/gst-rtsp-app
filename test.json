@@ -15,11 +15,20 @@
     "ViewFilter": "capsfilter",
     "ViewSink": "xvimagesink",
 
+    "WebRate": "videorate",
+    "WebScale": "videoscale",
+    "WebConv": "videoconvert",
+    "WebFilter": "capsfilter",
+    "WebEnc": "theoraenc",
+    "WebMux": "oggmux",
+    "WebSink": "tcpserversink",
+
     "Rate0": "videorate",
     "Scale0": "videoscale",
-    "Conv0": "videoconvert",
     "Filter0": "capsfilter",
-    "Enc0": "x264enc",
+    "Conv0": "vaapipostproc",
+    "Enc0": "vaapih264enc",
+    "Parse0": "h264parse",
     "Pay0": "rtph264pay",
 
     "Rate1": "videorate",
@@ -32,10 +41,11 @@
   },
 
   "filters": {
-    "MainCaps": "video/x-raw,width=(int)640,height=(int)480,framerate=(fraction)15/1",
-    "ViewCaps": "video/x-raw, width=(int)320, height=(int)240, framerate=(fraction)15/1",
-    "Caps0": "video/x-raw,width=(int)640,height=(int)480,framerate=(fraction)15/1,pixel-aspect-ratio=(fraction)4/3, interlace-mode=(string)progressive",
-    "Caps1": "video/x-raw,width=(int)640,height=(int)480,framerate=(fraction)25/2,pixel-aspect-ratio=(fraction)4/3, interlace-mode=(string)progressive"
+    "MainCaps": "video/x-raw,width=(int)2448,height=(int)2048,framerate=(fraction)15/1",
+    "ViewCaps": "video/x-raw, width=(int)1224, height=(int)1024, framerate=(fraction)15/1",
+    "WebCaps": "video/x-raw,width=(int)512,height=(int)384,framerate=(fraction)25/2,pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive",
+    "Caps0": "video/x-raw,width=(int)2448,height=(int)2048,framerate=(fraction)15/1,pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive",
+    "Caps1": "video/x-raw,width=(int)640,height=(int)480,framerate=(fraction)25/2,pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive"
   },
 
   "pipes": {
@@ -43,8 +53,9 @@
 
     "MainPipe": ["MainSource", "MainRate", "MainScale", "MainFilter", "MainTee"],
     "ViewPipe": ["ViewRate", "ViewScale", "ViewConv", "ViewFilter", "ViewSink"],
+    "WebPipe": ["WebRate", "WebScale", "WebConv", "WebFilter", "WebEnc", "WebMux", "WebSink"],
 
-    "h264": ["Rate0", "Scale0", "Conv0", "Filter0", "Enc0", "Pay0"],
+    "h264": ["Rate0", "Scale0", "Filter0", "Conv0", "Enc0", "Parse0", "Pay0"],
     "theora": ["Rate1", "Scale1", "Conv1", "Filter1", "Enc1", "Pay1"]
   },
 
@@ -58,27 +69,41 @@
     {"src": "MainScale", "dst": "MainFilter"},
     {"src": "MainFilter", "dst": "MainTee"},
 
+
     {"src": "ViewRate",  "dst": "ViewScale"},
     {"src": "ViewScale", "dst": "ViewConv"},
     {"src": "ViewConv", "dst": "ViewFilter"},
     {"src": "ViewFilter", "dst": "ViewSink"},
 
+    {"src": "WebRate",  "dst": "WebScale"},
+    {"src": "WebScale", "dst": "WebConv"},
+    {"src": "WebConv", "dst": "WebFilter"},
+    {"src": "WebFilter", "dst": "WebEnc"},
+    {"src": "WebEnc", "dst": "WebMux"},
+    {"src": "WebMux", "dst": "WebSink"},
+
     {"src": "Rate0",  "dst": "Scale0"},
-    {"src": "Scale0", "dst": "Conv0"},
-    {"src": "Conv0", "dst": "Filter0"},
-    {"src": "Filter0", "dst": "Enc0"},
-    {"src": "Enc0", "dst": "Pay0"},
+    {"src": "Scale0", "dst": "Filter0"},
+    {"src": "Filter0", "dst": "Conv0"},
+    {"src": "Conv0", "dst": "Enc0"},
+    {"src": "Enc0", "dst": "Parse0"},
+    {"src": "Parse0", "dst": "Pay0"},
 
     {"src": "Rate1",  "dst": "Scale1"},
     {"src": "Scale1", "dst": "Conv1"},
     {"src": "Conv1", "dst": "Filter1"},
     {"src": "Filter1", "dst": "Enc1"},
-    {"src": "Enc1", "dst": "Pay1"}
+    {"src": "Enc1",  "dst": "Pay1"}
   ],
 
   "connections": {
     "ViewPipe": {
       "first_elem": "ViewRate",
+      "src_pipe": "MainPipe",
+      "src_last_elem": "MainTee"
+    },
+    "WebPipe": {
+      "first_elem": "WebRate",
       "src_pipe": "MainPipe",
       "src_last_elem": "MainTee"
     },

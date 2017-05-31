@@ -92,7 +92,7 @@ static gboolean MessageHandler(GstBus * bus, GstMessage * msg, gpointer user_dat
       break;
 
     case GST_MESSAGE_EOS:
-      GST_ERROR("End-Of-Stream reached.\n");
+      GST_ERROR("End-Of-Stream reached.");
       break;
 
     case GST_MESSAGE_STATE_CHANGED:
@@ -113,7 +113,7 @@ static gboolean MessageHandler(GstBus * bus, GstMessage * msg, gpointer user_dat
     }
 
     default:
-//      g_print("Message type %s received from element %s:\n{ %s }\n",
+//      g_print("Message type %s received from element %s:{ %s }\n",
 //              GST_MESSAGE_TYPE_NAME(msg),
 //              GST_OBJECT_NAME (msg->src),
 //              gst_structure_to_string(gst_message_get_structure(msg)));
@@ -132,16 +132,21 @@ static gboolean KeyboardHandler(GIOChannel *source, GIOCondition cond, gpointer 
 
   switch (g_ascii_tolower (str[0])) {
 
-    case 'p':
+    // Test
+    case '1':
       gst_element_set_state (topology->GetPipe("TestPipe"), GST_STATE_PLAYING);
       break;
 
-    case '[':
+    case '2':
       gst_element_set_state (topology->GetPipe("TestPipe"), GST_STATE_PAUSED);
       break;
 
-    case ']':
+    case '3':
       gst_element_set_state (topology->GetPipe("TestPipe"), GST_STATE_READY);
+      break;
+
+    case '4':
+      gst_element_set_state (topology->GetPipe("TestPipe"), GST_STATE_NULL);
       break;
 
     case 'q':
@@ -153,6 +158,7 @@ static gboolean KeyboardHandler(GIOChannel *source, GIOCondition cond, gpointer 
       g_object_set (topology->GetElement("MainSource"), "led-power", led, NULL);
       break;
 
+    // Main
     case 'w':
       gst_element_set_state (topology->GetPipe("MainPipe"), GST_STATE_PLAYING);
       break;
@@ -165,27 +171,43 @@ static gboolean KeyboardHandler(GIOChannel *source, GIOCondition cond, gpointer 
       gst_element_set_state (topology->GetPipe("MainPipe"), GST_STATE_READY);
       break;
 
-    case 'a':
+    case 't':
+      gst_element_set_state (topology->GetPipe("MainPipe"), GST_STATE_NULL);
+      break;
+
+    // View
+    case 's':
       gst_element_set_state (topology->GetPipe("ViewPipe"), GST_STATE_PLAYING);
       break;
 
-    case 's':
+    case 'd':
       gst_element_set_state (topology->GetPipe("ViewPipe"), GST_STATE_PAUSED);
       break;
 
-    case 'd':
+    case 'f':
       gst_element_set_state (topology->GetPipe("ViewPipe"), GST_STATE_READY);
       break;
 
-//    case 'g':
-//      g_object_set(topology->GetElement("valve1"), "drop", FALSE, NULL);
-//      g_object_set(topology->GetElement("valve2"), "drop", FALSE, NULL);
-//      break;
-//
-//    case 'h':
-//      g_object_set(topology->GetElement("valve1"), "drop", TRUE, NULL);
-//      g_object_set(topology->GetElement("valve2"), "drop", TRUE, NULL);
-//      break;
+    case 'g':
+      gst_element_set_state (topology->GetPipe("ViewPipe"), GST_STATE_NULL);
+      break;
+
+    // Web
+    case 'x':
+      gst_element_set_state (topology->GetPipe("WebPipe"), GST_STATE_PLAYING);
+      break;
+
+    case 'c':
+      gst_element_set_state (topology->GetPipe("WebPipe"), GST_STATE_PAUSED);
+      break;
+
+    case 'v':
+      gst_element_set_state (topology->GetPipe("WebPipe"), GST_STATE_READY);
+      break;
+
+    case 'b':
+      gst_element_set_state (topology->GetPipe("WebPipe"), GST_STATE_NULL);
+      break;
 
     default:
       break;
@@ -233,6 +255,10 @@ int main(int argc, char *argv[]) {
   msg_watch = gst_bus_add_watch (bus, MessageHandler, NULL);
   gst_object_unref (bus);
 
+  // attach messagehandler
+  bus  = gst_pipeline_get_bus (GST_PIPELINE (topology->GetPipe("WebPipe")));
+  msg_watch = gst_bus_add_watch (bus, MessageHandler, NULL);
+  gst_object_unref (bus);
 
 
   // Create the server
@@ -262,11 +288,6 @@ int main(int argc, char *argv[]) {
 
   // Start playing
   if (gst_element_set_state(topology->GetPipe("MainPipe"), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
-    GST_ERROR ("Unable to set the main pipeline to the playing state.");
-    Stop();
-  }
-
-  if (gst_element_set_state(topology->GetPipe("ViewPipe"), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
     GST_ERROR ("Unable to set the main pipeline to the playing state.");
     Stop();
   }
