@@ -1,10 +1,6 @@
 #include <rapidjson/document.h>
 #include <fstream>
 
-// TODO
-#define DEF_HTML_IP "192.168.10.152"
-#define  DEF_HTML_PORT 5050
-
 #include "topology.h"
 
 GST_DEBUG_CATEGORY_STATIC (log_app_topology);  // define debug category (statically)
@@ -74,6 +70,7 @@ bool Topology::LoadJson(const std::string &json) {
   // it changes the gst-name so rtspmedia picks it up
   gst_element_set_name(GetElement("Pay0"), "pay0");
   gst_element_set_name(GetElement("Pay1"), "pay0");
+  gst_element_set_name(GetElement("Pay2"), "pay0");
 
   // I <3 Roseek
   // g_object_set (GetElement("MainSource"), "resolution", 3, NULL);
@@ -83,7 +80,7 @@ bool Topology::LoadJson(const std::string &json) {
   g_object_set (GetElement("TestSource"), "pattern", 18, "is-live", TRUE, NULL);
 
   // tcpserver
-  g_object_set (GetElement("WebSink"), "host", DEF_HTML_IP, "port", DEF_HTML_PORT, NULL);
+  g_object_set (GetElement("WebSink"), "host", "192.168.90.62", "port", 5050, NULL);
 
   // trash
   //g_object_set (main_pipe, "message-forward", TRUE, NULL);
@@ -117,6 +114,7 @@ bool Topology::LoadJson(const std::string &json) {
   g_object_set (GetElement("WebFilter"), "caps", GetCaps("WebCaps"), NULL);
   g_object_set (GetElement("Filter0"), "caps", GetCaps("Caps0"), NULL);
   g_object_set (GetElement("Filter1"), "caps", GetCaps("Caps1"), NULL);
+  g_object_set (GetElement("Filter2"), "caps", GetCaps("Caps2"), NULL);
 
   // Read and create the pipes, fill them with elements then save them
   // -----------------------------------------------------------------

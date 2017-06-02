@@ -168,19 +168,26 @@ RtspServer::StateChange(GstRTSPMedia *media, gint arg1, gpointer user_data) {
   GST_INFO("%s => %s", gst_element_get_name(element), gst_element_state_get_name(state));
 
   if (state == GST_STATE_PLAYING) {
-    GST_INFO("Linking \"%s\" to main tee", gst_element_get_name(element));
-
+	GST_LOG("PLAY");
     std::string element_name(gst_element_get_name(element));
-    GstElement* intersink = intersinks.at(element_name);
-    GstElement* queue = queues.at(element_name);
+
+	//nothing to do
+	if (intersinks.find(element_name) == intersinks.end())
+		return;
 
     if (rtsp_active.at(element_name)) {
       GST_LOG("Already linked.");
       return;
     }
-      
+
     rtsp_active.at(element_name) = true;
 
+
+    GST_DEBUG("Linking \"%s\" to main tee", gst_element_get_name(element));
+
+    GstElement* intersink = intersinks.at(element_name);
+    GstElement* queue = queues.at(element_name);
+      
     if (!gst_bin_add(GST_BIN (TODO_pipe), queue)
         || !gst_bin_add(GST_BIN (TODO_pipe), intersink))
     {
@@ -200,11 +207,12 @@ RtspServer::StateChange(GstRTSPMedia *media, gint arg1, gpointer user_data) {
   }
 
   if (state == GST_STATE_NULL) {
-    GST_LOG("Unlinking from main tee: %s", gst_element_get_name(element));
-
+	GST_LOG("PLAY");
     std::string element_name(gst_element_get_name(element));
-    GstElement* intersink = intersinks.at(element_name);
-    GstElement* queue = queues.at(element_name);
+
+	//nothing to do
+	if (intersinks.find(element_name) == intersinks.end())
+		return;
 
     if (!rtsp_active.at(element_name)) {
       GST_LOG("Already unlinked.");
@@ -212,6 +220,12 @@ RtspServer::StateChange(GstRTSPMedia *media, gint arg1, gpointer user_data) {
     }
 
     rtsp_active.at(element_name) = false;
+
+
+    GST_LOG("Unlinking from main tee: %s", gst_element_get_name(element));
+
+    GstElement* intersink = intersinks.at(element_name);
+    GstElement* queue = queues.at(element_name);
 
     gst_element_set_state(intersink, GST_STATE_READY);
     gst_element_set_state(queue, GST_STATE_READY);

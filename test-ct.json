@@ -3,7 +3,7 @@
     "TestSource": "videotestsrc",
     "TestSink": "aasink",
 
-    "MainSource": "v4l2src",
+    "MainSource": "ctsrc",
     "MainRate": "videorate",
     "MainScale": "videoscale",
     "MainFilter": "capsfilter",
@@ -41,15 +41,15 @@
     "Parse1": "h265parse",
     "Pay1": "rtph265pay",
 
-    "V4l2Src": "videotestsrc",
+    "V4l2Src": "v4l2src",
     "Rate2": "videorate",
     "Scale2": "videoscale",
     "Conv2": "videoconvert",
     "Filter2": "capsfilter",
     "Post2": "vaapipostproc",
-    "Enc2": "vaapih265enc",
-    "Parse2": "h265parse",
-    "Pay2": "rtph265pay"
+    "Enc2": "vaapih264enc",
+    "Parse2": "h264parse",
+    "Pay2": "rtph264pay"
 
   },
 
