@@ -28,7 +28,7 @@ GstElement* RtspServer::TODO_pipe = NULL;
 
 RtspServer::RtspServer() {
 
-  GST_DEBUG_CATEGORY_INIT (log_app_rtsp, "GST_APP_RTSP",
+  GST_DEBUG_CATEGORY_INIT (log_app_rtsp, "GCF_APP_RTSP",
                            GST_DEBUG_FG_CYAN, "RTSP Server");
 
   gst_rtsp_server = gst_rtsp_server_new();

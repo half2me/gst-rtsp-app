@@ -225,7 +225,7 @@ int main(int argc, char *argv[]) {
   gst_init (&argc, &argv);
 
   GST_DEBUG_CATEGORY_INIT (
-    GST_CAT_DEFAULT, "GST_APP_MAIN", GST_DEBUG_FG_GREEN, "Main application"
+    GST_CAT_DEFAULT, "GCF_APP_MAIN", GST_DEBUG_FG_GREEN, "Main application"
   );
 
   Logger::Init();
