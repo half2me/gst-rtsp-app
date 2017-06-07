@@ -3,7 +3,7 @@
     "TestSource": "videotestsrc",
     "TestSink": "aasink",
 
-    "MainSource": "v4l2src",
+    "MainSource": "ctsrc",
     "MainRate": "videorate",
     "MainScale": "videoscale",
     "MainFilter": "capsfilter",
@@ -41,25 +41,22 @@
     "Parse1": "h265parse",
     "Pay1": "rtph265pay",
 
-    "V4l2Src": "videotestsrc",
-    "Rate2": "videorate",
-    "Scale2": "videoscale",
+    "V4l2Src": "v4l2src",
     "Conv2": "videoconvert",
     "Filter2": "capsfilter",
     "Post2": "vaapipostproc",
-    "Enc2": "vaapih265enc",
-    "Parse2": "h265parse",
-    "Pay2": "rtph265pay"
-
+    "Enc2": "vaapih264enc",
+    "Parse2": "h264parse",
+    "Pay2": "rtph264pay"
   },
 
   "filters": {
-    "MainCaps": "video/x-raw,width=(int)640,height=(int)480,framerate=(fraction)30/1",
-    "ViewCaps": "video/x-raw, width=(int)640, height=(int)480, framerate=(fraction)30/1",
-    "WebCaps": "video/x-raw,width=(int)512,height=(int)384,framerate=(fraction)25/2,pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive",
-    "Caps0": "video/x-raw,width=(int)640,height=(int)480,framerate=(fraction)30/1,pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive",
-    "Caps1": "video/x-raw,width=(int)640,height=(int)480,framerate=(fraction)30/1,pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive",
-	"Caps2": "video/x-raw,width=(int)640,height=(int)480,framerate=(fraction)30/1,pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive"
+    "MainCaps": "video/x-raw,width=(int)1920,height=(int)1080,framerate=(fraction)15/1",
+    "ViewCaps": "video/x-raw,width=(int)1920,height=(int)1080,framerate=(fraction)15/1",
+    "WebCaps": "video/x-raw,width=(int)640,height=(int)360,framerate=(fraction)25/2",
+    "Caps0": "video/x-raw,width=(int)1920,height=(int)1080,framerate=(fraction)15/1,pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive",
+    "Caps1": "video/x-raw,width=(int)1920,height=(int)1080,framerate=(fraction)15/1,pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive",
+    "Caps2": "video/x-raw,width=(int)640,height=(int)480,framerate=(fraction)30/1"
   },
 
   "pipes": {
@@ -73,7 +70,7 @@
 
     "h264": ["Rate0", "Scale0", "Conv0", "Filter0", "Post0", "Enc0", "Parse0", "Pay0"],
     "h265": ["Rate1", "Scale1", "Conv1", "Filter1", "Post1", "Enc1", "Parse1", "Pay1"],
-    "v4l2": ["V4l2Src", "Rate2", "Scale2", "Conv2", "Filter2", "Post2", "Enc2", "Parse2", "Pay2"]
+    "v4l2": ["V4l2Src", "Conv2", "Filter2", "Post2", "Enc2", "Parse2", "Pay2"]
   },
 
   "rtsp": ["v4l2", "h264", "h265"],
@@ -114,13 +111,11 @@
     {"src": "Enc1",  "dst": "Parse1"},
     {"src": "Parse1", "dst": "Pay1"},
 
-    {"src": "V4l2Src",  "dst": "Rate2"},
-    {"src": "Rate2",  "dst": "Scale2"},
-    {"src": "Scale2", "dst": "Conv2"},
+    {"src": "V4l2Src", "dst": "Conv2"},
     {"src": "Conv2", "dst": "Filter2"},
     {"src": "Filter2", "dst": "Post2"},
     {"src": "Post2",  "dst": "Enc2"},
-    {"src": "Enc2", "dst": "Parse2"},
+    {"src": "Enc2",  "dst": "Parse2"},
     {"src": "Parse2", "dst": "Pay2"}
 	
   ],

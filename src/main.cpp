@@ -233,7 +233,7 @@ int main(int argc, char *argv[]) {
 
   // Load pipeline definition
   topology = new Topology();
-  if (!topology->LoadJson("../test.json")) {
+  if (!topology->LoadJson("test.json")) {
     GST_ERROR ("Can't build pipeline hierarchy from definitions. Quit.");
     Stop();
   }

@@ -74,9 +74,7 @@ bool Topology::LoadJson(const std::string &json) {
 
   // I <3 Roseek
   // g_object_set (GetElement("MainSource"), "resolution", 3, NULL);
-  g_object_set (GetElement("MainSource"), "led-power", FALSE, "resolution", 1, NULL);
-  g_object_set (GetElement("MainSource"), "draw-brokee", TRUE, NULL);
-  g_object_set (GetElement("MainSource"), "framerate", 15, NULL);
+  g_object_set (GetElement("MainSource"), "resolution", 3, NULL);
 
   // set fancy ball for test stream
   g_object_set (GetElement("TestSource"), "pattern", 18, "is-live", TRUE, NULL);

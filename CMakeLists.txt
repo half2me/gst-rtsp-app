@@ -16,14 +16,15 @@ PKG_CHECK_MODULES(
 )
 
 # RapidJSON
-PKG_CHECK_MODULES(
-        [RAPIDJSON], [RapidJSON >= 1.0]
-)
+# Needs subproject for installer
+#PKG_CHECK_MODULES(
+#        RAPIDJSON REQUIRED RapidJSON
+#)
 
 include_directories(
         PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${RAPIDJSON_INCLUDE_DIRS}
+#        ${RAPIDJSON_INCLUDE_DIRS}
         ${GST_INCLUDE_DIRS}
 )
 
@@ -43,3 +44,8 @@ target_sources(
         src/topology.cpp
         src/logger.cpp
 )
+
+set(
+	EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/bin
+)
+
