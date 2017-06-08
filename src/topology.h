@@ -1,7 +1,8 @@
 #pragma once
 
-#define JSON_TAG_ELEMENTS "elements"
+#define JSON_TAG_CAPS "caps"
 #define JSON_TAG_FILTERS "filters"
+#define JSON_TAG_PROPERTIES "properties"
 #define JSON_TAG_LINKS "links"
 #define JSON_TAG_PIPES "pipes"
 #define JSON_TAG_RTSP "rtsp"
@@ -49,8 +50,9 @@ public:
   bool CreateElement(const char* elem_name, const char* elem_type);
   bool CreateElement(const string& elem_name, const string& elem_type);
 
-  bool CreateFilter(const char *filter_name, const char *filter_def);
-
+  bool CreateCap(const char *cap_name, const char *cap_def);
+  bool AssignCap(const char *filter_name, const char *cap_name);
+  bool SetProperty(const char* elem_name, const char* prop_name, const char* prop_value);
   bool CreatePipeline(const char* elem_name);
 
   bool SetElement(const string& name, GstElement *element);
@@ -58,7 +60,7 @@ public:
   bool HasElement(const string &elemname);
   bool HasPipe(const string &elem_name);
   bool HasRtspPipe(const string &elem_name);
-  bool HasFilter(const string &elem_name);
+  bool HasCap(const string &cap_name);
   bool AddElementToBin (const string& elem_name, const string& pipe_name);
   map<string, GstElement*> intersinks;
   map<string, GstElement*> queues;
@@ -68,9 +70,5 @@ private:
   map<string, GstElement*> pipes;
   map<string, GstElement*> rtsp_pipes;
   map<string, GstCaps*> caps;
-
-  map<string, vector<string>> raw_properties;
-  map<string, vector<string>> raw_caps;
-
 
 };
