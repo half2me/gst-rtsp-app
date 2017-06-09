@@ -29,186 +29,6 @@ Topology::~Topology() {
   }
 }
 
-bool Topology::LoadJson(const std::string &json) {
-
-  rapidjson::Document document;
-  std::ifstream ifs(json);
-  std::string content(
-    (std::istreambuf_iterator<char>(ifs)),
-    (std::istreambuf_iterator<char>()));
-  document.Parse(content.c_str());
-
-
-  // Load, create and store caps
-  // ---------------------------
-  if (document.HasMember(JSON_TAG_CAPS)) {
-    GST_LOG("Reading caps from json");
-
-    const rapidjson::Value &json_caps_obj = document[JSON_TAG_CAPS];
-
-    for (rapidjson::Value::ConstMemberIterator itr = json_caps_obj.MemberBegin();
-         itr != json_caps_obj.MemberEnd(); ++itr) {
-
-      const char
-          *cap_name = itr->name.GetString(),
-          *cap_definition = itr->value.GetString();
-
-      if (!CreateCap(cap_name, cap_definition)) {
-        return false;
-      }
-    }
-  }
-
-  // Read, create, and save pipes and elements. Set
-  // element attributes, then fill them into the pipe
-  // ------------------------------------------------
-  if (document.HasMember(JSON_TAG_PIPES)) {
-    GST_LOG("Reading pipelines from json");
-
-    const rapidjson::Value &json_pipes_obj = document[JSON_TAG_PIPES];
-
-    for (rapidjson::Value::ConstMemberIterator pipe_itr = json_pipes_obj.MemberBegin();
-         pipe_itr != json_pipes_obj.MemberEnd(); ++pipe_itr) {
-
-      const char *pipe_name = pipe_itr->name.GetString();
-
-      if (!CreatePipeline(pipe_name)) {
-        return false;
-      }
-
-      const rapidjson::Value &elements_obj = pipe_itr->value;
-
-      for (rapidjson::Value::ConstMemberIterator elem_itr = elements_obj.MemberBegin();
-           elem_itr != elements_obj.MemberEnd(); ++elem_itr) {
-
-        const char *elem_name = elem_itr->name.GetString();
-        const rapidjson::Value &json_properties_obj = elem_itr->value;
-
-        // First check if the element can be created
-        if (!json_properties_obj.HasMember("type")) {
-          GST_ERROR("Element \"%s\" in pipe \"%s\" does not have a type!", elem_name, pipe_name);
-          return false;
-        }
-
-        const char *type_name = json_properties_obj["type"].GetString();
-
-        if (!CreateElement(elem_name, type_name)) {
-          return false;
-        }
-
-        for (rapidjson::Value::ConstMemberIterator prop_itr = json_properties_obj.MemberBegin();
-             prop_itr != json_properties_obj.MemberEnd(); ++prop_itr) {
-
-          const char
-              *prop_name = prop_itr->name.GetString(),
-              *prop_value = prop_itr->value.GetString();
-
-          // It's already handled
-          if (!strcmp("type", prop_name)) {
-            continue;
-          }
-
-          // attach pre-defined filtercaps
-          if (!strcmp("filter", prop_name)) {
-
-            if (!AssignCap(elem_name, prop_value)) {
-              return false;
-            }
-            continue;
-          }
-
-          // Not a reserved keyword, set it as a generic attribute
-          if (!SetProperty(elem_name, prop_name, prop_value)) {
-            return false;
-          }
-
-        }
-
-
-        // Try to add this element to the pipe
-        if (!AddElementToBin(elem_name, pipe_name)) {
-          return false;
-        }
-
-      }
-    }
-  } else {
-    GST_ERROR("There are no pipelines defined in the json data!");
-    return false;
-  }
-
-  // Read and save list of RTSP Pipes
-  // --------------------------------
-  if (document.HasMember(JSON_TAG_RTSP)) {
-    GST_LOG("Reading RTSP Pipes from JSON...");
-
-    const rapidjson::Value &json_rtsp_arr = document[JSON_TAG_RTSP];
-
-    for (rapidjson::Value::ConstValueIterator itr = json_rtsp_arr.Begin(); itr != json_rtsp_arr.End(); ++itr) {
-      const char *pipe_name = itr->GetString();
-
-      if (!HasPipe(pipe_name)) {
-        GST_ERROR("Can't create RTSP pipe from \"%s\": Pipe does not exists", pipe_name);
-        return false;
-      }
-
-      GST_LOG("\"%s\" is marked as RTSP Pipe.", pipe_name);
-      rtsp_pipes[pipe_name]= pipes[pipe_name];
-    }
-  }
-
-  // Intervideo powered pipe connections
-  // -----------------------------------
-  if (document.HasMember(JSON_TAG_CONNECTIONS)) {
-    const rapidjson::Value &json_rtsp_pipes_obj = document[JSON_TAG_CONNECTIONS];
-
-    for (rapidjson::Value::ConstMemberIterator pipe_itr = json_rtsp_pipes_obj.MemberBegin();
-         pipe_itr != json_rtsp_pipes_obj.MemberEnd(); ++pipe_itr) {
-
-      const char
-        *pipe_name = pipe_itr->name.GetString(),
-        *first_elem_name = pipe_itr->value["first_elem"].GetString(),
-        *dst_pipe_name = pipe_itr->value["src_pipe"].GetString(),
-        *dst_last_elem_name = pipe_itr->value["src_last_elem"].GetString();
-
-      if (!ConnectPipe(pipe_name, first_elem_name, dst_pipe_name, dst_last_elem_name)) {
-        GST_ERROR ("Unable to link pipe %s to %s", pipe_name, dst_pipe_name);
-        return false;
-      }
-    }
-  }
-
-  // Load connections and link elements
-  // ----------------------------------
-  if (document.HasMember(JSON_TAG_LINKS)) {
-    GST_LOG("Reading element connections from json");
-
-    const rapidjson::Value &json_links_arr = document[JSON_TAG_LINKS];
-
-    for (rapidjson::Value::ConstValueIterator itr = json_links_arr.Begin();
-         itr != json_links_arr.End(); ++itr) {
-
-
-      rapidjson::Value::ConstValueIterator inner_itr = itr->Begin();
-      while (inner_itr != itr->End()) {
-        const char *src_name = inner_itr->GetString();
-
-        if (++inner_itr != itr->End()) {
-          const char *dst_name = inner_itr->GetString();
-
-          if (!ConnectElements(src_name, dst_name)) {
-            return false;
-          }
-        }
-      }
-    }
-  } else {
-    GST_ERROR("There are no links defined in the json data!");
-    return false;
-  }
-
-  return true;
-}
 
 bool
 Topology::ConnectPipe(const char *pipe,
@@ -376,6 +196,10 @@ GstElement *Topology::GetPipe(const std::string& name) {
   return pipes.at(name);
 }
 
+GstElement *Topology::GetRtspPipe(const std::string& name) {
+  return rtsp_pipes.at(name);
+}
+
 bool Topology::SetPipe(const std::string& name, GstElement *pipeline) {
   if (!GST_IS_PIPELINE(pipeline)) {
     GST_ERROR("Can't add pipeline: \"%s\" is invalid!", name.c_str());
@@ -387,6 +211,21 @@ bool Topology::SetPipe(const std::string& name, GstElement *pipeline) {
     return false;
   }
   pipes[name] = pipeline;
+
+  return true;
+}
+
+bool Topology::SetRtspPipe(const std::string& name, GstElement *pipeline) {
+  if (!GST_IS_PIPELINE(pipeline)) {
+    GST_ERROR("Can't add pipeline: \"%s\" is invalid!", name.c_str());
+    return false;
+  }
+
+  if (rtsp_pipes.find(name) != rtsp_pipes.end()) {
+    GST_ERROR("RTSP Pipe \"%s\" has been already defined!", name.c_str());
+    return false;
+  }
+  rtsp_pipes[name] = pipeline;
 
   return true;
 }

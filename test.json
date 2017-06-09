@@ -19,8 +19,9 @@
     },
     "MainPipe":{
       "MainSource":{
-        "type":"ctsrc",
-        "resolution": "3"
+        "type":"videotestsrc",
+        "is-live": "1",
+        "pattern":"15"
       },
       "MainRate":{
         "type":"videorate"

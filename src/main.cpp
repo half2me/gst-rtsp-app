@@ -1,6 +1,7 @@
 #include <gst/gst.h>
 #include <stdio.h>
 #include "topology.h"
+#include "json.h"
 #include "server.h"
 #include "logger.h"
 
@@ -132,7 +133,13 @@ static gboolean KeyboardHandler(GIOChannel *source, GIOCondition cond, gpointer 
 
   switch (g_ascii_tolower (str[0])) {
 
-    // Test
+    // Leave
+    case 'q':
+      Stop();
+      break;
+
+
+      // Test
     case '1':
       gst_element_set_state (topology->GetPipe("TestPipe"), GST_STATE_PLAYING);
       break;
@@ -147,10 +154,6 @@ static gboolean KeyboardHandler(GIOChannel *source, GIOCondition cond, gpointer 
 
     case '4':
       gst_element_set_state (topology->GetPipe("TestPipe"), GST_STATE_NULL);
-      break;
-
-    case 'q':
-      Stop();
       break;
 
     case 'l':
@@ -224,19 +227,30 @@ int main(int argc, char *argv[]) {
   // Initialize GStreamer
   gst_init (&argc, &argv);
 
+  // Set up logging
   GST_DEBUG_CATEGORY_INIT (
     GST_CAT_DEFAULT, "GCF_APP_MAIN", GST_DEBUG_FG_GREEN, "Main application"
   );
-
   Logger::Init();
 
-
-  // Load pipeline definition
+  // Object to keep track of registered elements and properties
   topology = new Topology();
-  if (!topology->LoadJson("test.json")) {
+
+  try {
+    // Build pipeline directly from json definitions
+    Json("test.json").CreateTopology(topology);
+
+  }
+  catch (JsonParseException pe) {
+    GST_ERROR("Loading JSON is falied at char %ld: %s", pe.Offset(), pe.what());
+    Stop();
+  }
+  catch (std::exception) {
     GST_ERROR ("Can't build pipeline hierarchy from definitions. Quit.");
     Stop();
   }
+
+
 
   GstBus *bus;
 

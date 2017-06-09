@@ -43,6 +43,7 @@ target_sources(
         src/server.cpp
         src/topology.cpp
         src/logger.cpp
+		src/json.cpp
 )
 
 set(
