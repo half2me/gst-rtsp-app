@@ -216,15 +216,24 @@ bool Topology::SetPipe(const std::string& name, GstElement *pipeline) {
 }
 
 bool Topology::SetRtspPipe(const std::string& name, GstElement *pipeline) {
+
+  // Check whether it's a valid pipe
   if (!GST_IS_PIPELINE(pipeline)) {
     GST_ERROR("Can't add pipeline: \"%s\" is invalid!", name.c_str());
     return false;
   }
 
-  if (rtsp_pipes.find(name) != rtsp_pipes.end()) {
+  // Check if it's our defined pipe
+  if (!HasPipe(name)) {
+    GST_ERROR("Can't create RTSP pipe from \"%s\": Pipe does not exists", name.c_str());
+  }
+
+  // Validate that it's not yet added
+  if (HasRtspPipe(name)) {
     GST_ERROR("RTSP Pipe \"%s\" has been already defined!", name.c_str());
     return false;
   }
+
   rtsp_pipes[name] = pipeline;
 
   return true;
@@ -367,6 +376,11 @@ bool Topology::HasRtspPipe(const string &elem_name) {
 
 bool Topology::HasCap(const string &cap_name) {
   return caps.find(cap_name) != caps.end();
+}
+
+TopologyInvalidAttributeException::TopologyInvalidAttributeException(const std::string &message)
+    : std::runtime_error(message) {
+  GST_ERROR("%s", message.c_str());
 }
 
 /*

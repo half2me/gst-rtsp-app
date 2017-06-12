@@ -239,14 +239,13 @@ int main(int argc, char *argv[]) {
   try {
     // Build pipeline directly from json definitions
     Json("test.json").CreateTopology(topology);
-
   }
   catch (JsonParseException pe) {
-    GST_ERROR("Loading JSON is falied at char %ld: %s", pe.Offset(), pe.what());
+    GST_ERROR("Can't load JSON, quit!");
     Stop();
   }
-  catch (std::exception) {
-    GST_ERROR ("Can't build pipeline hierarchy from definitions. Quit.");
+  catch (JsonInvalidTypeException te) {
+    GST_ERROR ("Can't build pipeline hierarchy from definitions, quit!");
     Stop();
   }
 

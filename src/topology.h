@@ -83,3 +83,8 @@ private:
   map<string, GstCaps*> caps;
 
 };
+
+// Exceptions
+struct TopologyInvalidAttributeException : std::runtime_error {
+  TopologyInvalidAttributeException(const std::string& message = "Error in topology attribute!");
+};

@@ -15,8 +15,13 @@ class Json {
   Json(const char* json_file);
   ~Json();
 
-  bool CreateTopology(Topology* topology);
-  void ReadCaps(Topology* topology);
+  void CreateTopology(Topology* topology);
+
+  void SetCaps(Topology *topology);
+  void SetPipelineStructure(Topology *topology);
+  void SetRtspPipes(Topology *topology);
+  void SetInterConnections(Topology *topology);
+  void SetConnections(Topology *topology);
 
  private:
 
@@ -31,6 +36,6 @@ struct JsonParseException : std::runtime_error, rapidjson::ParseResult {
   JsonParseException(rapidjson::ParseErrorCode code, const char *msg, size_t offset);
 };
 
-struct JsonFormatException : std::runtime_error {
-  JsonFormatException(const std::string& message = "Error in json format!");
+struct JsonInvalidTypeException : std::runtime_error {
+  JsonInvalidTypeException(const std::string& message = "Error in json format!");
 };
