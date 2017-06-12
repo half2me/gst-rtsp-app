@@ -285,11 +285,11 @@ void Json::CreateTopology(Topology* topology) {
 }
 
 JsonParseException::JsonParseException(rapidjson::ParseErrorCode code, const char *msg, size_t offset)
-    : std::runtime_error(msg), ParseResult(code, offset) {
+    : GcfException(msg), ParseResult(code, offset) {
   GST_ERROR("Loading JSON is falied at char %ld: %s", Offset(), what());
 }
 
 JsonInvalidTypeException::JsonInvalidTypeException(const std::string &message)
-    : std::runtime_error(message) {
+    : GcfException(message) {
   GST_ERROR("Processing JSON is failed: %s", message.c_str());
 }

@@ -40,9 +40,9 @@ add_executable(
 target_sources(
         ${CMAKE_PROJECT_NAME} PRIVATE
         src/main.cpp
+		src/logger.cpp
         src/server.cpp
         src/topology.cpp
-        src/logger.cpp
 		src/json.cpp
 )
 

@@ -1,9 +1,11 @@
 #include <gst/gst.h>
 #include <stdio.h>
+
+#include "logger.h"
+#include "exception.h"
 #include "topology.h"
 #include "json.h"
 #include "server.h"
-#include "logger.h"
 
 // Local log category
 #define GST_CAT_DEFAULT log_app_main
@@ -240,7 +242,7 @@ int main(int argc, char *argv[]) {
     // Build pipeline directly from json definitions
     Json("test.json").CreateTopology(topology);
   }
-  catch (std::exception) {
+  catch (GcfException) {
     Stop();
   }
 

@@ -29,13 +29,13 @@ class Json {
 };
 
 // Exceptions
-#include <stdexcept>               // std::runtime_error
+#include "exception.h"
 #include "rapidjson/error/error.h" // rapidjson::ParseResult
 
-struct JsonParseException : std::runtime_error, rapidjson::ParseResult {
+struct JsonParseException : GcfException, rapidjson::ParseResult {
   JsonParseException(rapidjson::ParseErrorCode code, const char *msg, size_t offset);
 };
 
-struct JsonInvalidTypeException : std::runtime_error {
+struct JsonInvalidTypeException : GcfException {
   JsonInvalidTypeException(const std::string& message = "Error in json format!");
 };

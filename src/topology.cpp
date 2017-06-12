@@ -33,27 +33,23 @@ void
 Topology::ConnectPipe(const char *pipe,
                       const char *start_point,
                       const char *source_pipe,
-                      const char *source_end_point)
-{
-  if (!HasPipe(pipe)) {
-    throw TopologyInvalidAttributeException(std::string("MagicPipe \"") + pipe + "\" does not exist!");
-  }
+                      const char *source_end_point) {
+  // Chcek that we're speaking about valid pipes
+  GCF_ASSERT(HasPipe(pipe), TopologyInvalidAttributeException,
+             std::string("MagicPipe \"") + pipe + "\" does not exist!");
 
-  if (!HasPipe(source_pipe)) {
-    throw TopologyInvalidAttributeException(std::string("Source pipe \"") + source_pipe + "\" does not exist!");
-  }
+  GCF_ASSERT(HasPipe(source_pipe), TopologyInvalidAttributeException,
+             std::string("Source pipe \"") + source_pipe + "\" does not exist!");
 
-  if (!HasElement(source_end_point)) {
-    throw TopologyInvalidAttributeException(std::string("Tunnel start point \"") + source_end_point + "\" does not exist!");
-  }
+  GCF_ASSERT(HasElement(source_end_point), TopologyInvalidAttributeException,
+             std::string("Tunnel start point \"") + source_end_point + "\" does not exist!");
 
-  if (!HasElement(start_point)) {
-    throw TopologyInvalidAttributeException(std::string("Tunnel end point \"") + start_point + "\" does not exist!");
-  }
+  GCF_ASSERT(HasElement(start_point), TopologyInvalidAttributeException,
+           std::string("Tunnel end point \"") + start_point + "\" does not exist!");
 
   auto pipe_name = std::string(pipe);
 
-  // create gateway pairs
+  // create gateway pairs with ques
   GstElement* intersink = gst_element_factory_make(
       "intervideosink", ("intersink_" + pipe_name).c_str());
 
@@ -64,11 +60,8 @@ Topology::ConnectPipe(const char *pipe,
   GstElement* queue = gst_element_factory_make(
     "queue", ("queue_" + pipe_name).c_str());
 
-  if (!intersink || !intersrc || !queue) {
-    throw TopologyGstreamerException(
-        std::string("Error creating intervideo pair elements for pipe \"") + pipe + "\"!"
-    );
-  }
+  GCF_ASSERT (intersink && intersrc && queue, TopologyGstreamerException,
+        "Error while creating intervideo pair elements for pipe \"" + pipe_name + "\"");
 
   auto gateway_name = "gateway_" + pipe_name;
   g_object_set(intersink, "channel", gateway_name.c_str(), NULL);
@@ -106,85 +99,71 @@ Topology::ConnectPipe(const char *pipe,
 void Topology::CreateElement(const char* elem_name, const char* elem_type) {
 
   if (HasElement(elem_name)) {
-    GST_ERROR("Can't create \"%s\": it already exists.", elem_name);
+    GST_WARNING("Can't create \"%s\": it already exists.", elem_name);
     return;
   }
 
-  GST_LOG("Try to create element \"%s\" (type: %s)", elem_name, elem_type);
+  GST_DEBUG("Try to create element \"%s\" (type: %s)", elem_name, elem_type);
+
   GstElement *element = gst_element_factory_make(elem_type, elem_name);
 
-  if (!element) {
-    throw TopologyGstreamerException(
-        std::string("Element \"") + elem_name + "\" (type: " + elem_type + ") could not be created."
-    );
-  }
-
-  GST_DEBUG("Element \"%s\" (type: %s) is created.", elem_name, elem_type);
+  GCF_ASSERT(element, TopologyGstreamerException,
+             std::string("Element \"") + elem_name + "\" (type: " + elem_type + ") could not be created.");
 
   elements[elem_name] = element;
+  GST_DEBUG("Element \"%s\" (type: %s) is created.", elem_name, elem_type);
 }
 
 void Topology::CreateElement(const string& elem_name, const string& elem_type) {
   CreateElement(elem_name.c_str(), elem_type.c_str());
 }
 
-bool Topology::CreatePipeline(const char* pipe_name) {
+void Topology::CreatePipeline(const char* pipe_name) {
 
   if (HasPipe(pipe_name)) {
     GST_ERROR("Can't create \"%s\": it already exists.", pipe_name);
-    return false;
+    return;
   }
 
-  GST_LOG("Try to create pipeline \"%s\"", pipe_name);
+  GST_DEBUG("Try to create pipeline \"%s\"", pipe_name);
 
   GstElement *pipe = gst_pipeline_new(pipe_name);
 
-  if (!pipe) {
-    GST_ERROR("Pipeline \"%s\" could not be created.", pipe_name);
-    return false;
-  }
+  GCF_ASSERT(pipe, TopologyGstreamerException,
+    std::string("Pipeline \"") + pipe_name + "\" could not be created.");
 
-  GST_DEBUG("Pipeline \"%s\" is created.", pipe_name);
   pipes[pipe_name] = pipe;
-
-  return true;
+  GST_DEBUG("Pipeline \"%s\" is created.", pipe_name);
 }
 
-bool Topology::ConnectElements(const string& src_name, const string& dst_name) {
+void Topology::ConnectElements(const string& src_name, const string& dst_name) {
 
-  GST_LOG("Try to link \"%s\" to \"%s\"", src_name.c_str(), dst_name.c_str());
+  GST_DEBUG("Try to link \"%s\" to \"%s\"", src_name.c_str(), dst_name.c_str());
 
   // Check if the elements are registered then try to connect them
-  if (HasElement(src_name)
-      && HasElement(dst_name)
-      && gst_element_link(GetElement(src_name), GetElement(dst_name)))
-  {
-    GST_DEBUG ("Element \"%s\" is connected to \"%s\"", src_name.c_str(), dst_name.c_str());
-    return true;
-  }
+  GCF_ASSERT(HasElement(src_name) && HasElement(dst_name),
+             TopologyInvalidAttributeException, "Unable to link \"" +src_name + "\" to \"" + dst_name + "\": "
+                 + (HasElement(src_name) ? dst_name : src_name) + " does not exist.");
 
-  GST_ERROR ("Unable to link \"%s\" to \"%s\"", src_name.c_str(), dst_name.c_str());
-  return false;
+
+  GCF_ASSERT(gst_element_link(GetElement(src_name), GetElement(dst_name)), TopologyGstreamerException,
+             "Unable to link \"" +src_name + "\" to \"" + dst_name + "\"");
+
+  GST_DEBUG ("Element \"%s\" is connected to \"%s\"", src_name.c_str(), dst_name.c_str());
 }
 
-bool Topology::AddElementToBin (const string& elem_name, const string& pipe_name) {
+void Topology::AddElementToBin (const string& elem_name, const string& pipe_name) {
 
   GST_LOG("Try to add element \"%s\" to \"%s\"", elem_name.c_str(), pipe_name.c_str());
 
   // Check if the elements are declared to avoid adding null elements to the bin
-  if (!HasElement(elem_name)) {
-    GST_ERROR ("Adding invalid element \"%s\" to pipe \"%s\"", elem_name.c_str(), pipe_name.c_str());
-    return false;
-  }
+  GCF_ASSERT(HasElement(elem_name), TopologyInvalidAttributeException,
+    "Adding invalid element \"" + elem_name + "\" to pipe \"" + pipe_name + "\"");
 
-  if (!gst_bin_add(GST_BIN(pipes[pipe_name]), GetElement(elem_name))) {
-    GST_ERROR("Can't add element \"%s\" to pipe \"%s\"", elem_name.c_str(), pipe_name.c_str());
-    return false;
-  }
+  GCF_ASSERT(gst_bin_add(GST_BIN(pipes[pipe_name]), GetElement(elem_name)), TopologyGstreamerException,
+    "Can't add element \"" + elem_name + "\" to pipe \"" + pipe_name + "\"");
 
-  GST_DEBUG("Adding element \"%s\" to \"%s\"", elem_name.c_str(), pipe_name.c_str());
-
-  return true;
+  GST_DEBUG("Added element \"%s\" to \"%s\"", elem_name.c_str(), pipe_name.c_str());
 }
 
 GstElement *Topology::GetPipe(const std::string& name) {
@@ -195,43 +174,38 @@ GstElement *Topology::GetRtspPipe(const std::string& name) {
   return rtsp_pipes.at(name);
 }
 
-bool Topology::SetPipe(const std::string& name, GstElement *pipeline) {
-  if (!GST_IS_PIPELINE(pipeline)) {
-    GST_ERROR("Can't add pipeline: \"%s\" is invalid!", name.c_str());
-    return false;
+void Topology::SetPipe(const std::string& name, GstElement *pipeline) {
+
+  // Check if we already have pipe with the same name
+  if (HasPipe(name)) {
+    GST_WARNING("Pipe \"%s\" has been already added!", name.c_str());
+    return;
   }
 
-  if (pipes.find(name) != pipes.end()) {
-    GST_ERROR("Pipe \"%s\" has been already added!", name.c_str());
-    return false;
-  }
+  // Check if it's a valid pipe
+  GCF_ASSERT(GST_IS_PIPELINE(pipeline), TopologyInvalidAttributeException,
+             "Can't add pipeline: \"" + name + "\" is invalid!");
+
   pipes[name] = pipeline;
-
-  return true;
 }
 
-bool Topology::SetRtspPipe(const std::string& name, GstElement *pipeline) {
+void Topology::SetRtspPipe(const std::string& name, GstElement *pipeline) {
 
-  // Check whether it's a valid pipe
-  if (!GST_IS_PIPELINE(pipeline)) {
-    GST_ERROR("Can't add pipeline: \"%s\" is invalid!", name.c_str());
-    return false;
-  }
-
-  // Check if it's our defined pipe
-  if (!HasPipe(name)) {
-    GST_ERROR("Can't create RTSP pipe from \"%s\": Pipe does not exists", name.c_str());
-  }
-
-  // Validate that it's not yet added
+  // Check if we already have pipe with the same name
   if (HasRtspPipe(name)) {
-    GST_ERROR("RTSP Pipe \"%s\" has been already defined!", name.c_str());
-    return false;
+    GST_WARNING("Rtsp pipe \"%s\" has been already added!", name.c_str());
+    return;
   }
+
+  // Check whether it's our defined type
+  GCF_ASSERT(HasPipe(name), TopologyInvalidAttributeException,
+             "Can't add rtsp pipeline: \"" + name + "\" is not defined!");
+
+  // Check if it's a valid pipe
+  GCF_ASSERT(GST_IS_PIPELINE(pipeline), TopologyInvalidAttributeException,
+             "Can't add pipeline: \"" + name + "\" is not a valid pipe!");
 
   rtsp_pipes[name] = pipeline;
-
-  return true;
 }
 
 const std::map<std::string, GstElement *> &Topology::GetPipes() {
@@ -246,21 +220,18 @@ GstElement *Topology::GetElement(const std::string& name) {
   return elements.at(name);
 }
 
-bool Topology::SetElement(const std::string& name, GstElement *element) {
+void Topology::SetElement(const std::string& name, GstElement *element) {
 
+  // Check whether is already added
   if (HasElement(name)) {
-    GST_ERROR("Element \"%s\" has been already added!", name.c_str());
-    return false;
+    GST_WARNING("Element \"%s\" has been already added!", name.c_str());
+    return;
   }
 
-  if (!GST_IS_ELEMENT(element)) {
-    GST_ERROR("Can't add \"%s\": not a valid element!", name.c_str());
-    return false;
-  }
+  GCF_ASSERT(GST_IS_ELEMENT(element), TopologyInvalidAttributeException,
+             "Can't add \"" + name + "\": not a valid element!");
 
   elements[name] = element;
-
-  return true;
 }
 
 const std::map<std::string, GstElement *> &Topology::GetElements() {
@@ -313,56 +284,42 @@ GstCaps *Topology::GetCaps(const string& name) {
   return gst_caps_copy(caps.at(name));
 }
 
-bool Topology::CreateCap(const char *cap_name, const char *cap_def) {
+void Topology::CreateCap(const char *cap_name, const char *cap_def) {
 
+  // Check if it's already created
   if (HasCap(cap_name)) {
-    GST_ERROR("Can't create cap \"%s\": it already exists.", cap_name);
-    return false;
+    GST_WARNING("Can't create cap \"%s\": it already exists.", cap_name);
+    return;
   }
 
   GST_LOG("Creating cap: \"%s\"", cap_name);
 
   GstCaps *cap = gst_caps_from_string(cap_def);
-
-  if (!cap) {
-    GST_ERROR("Cap \"%s\" could not be created!", cap_name);
-    return false;
-  }
-
-  GST_DEBUG ("Loaded cap \"%s\": %" GST_PTR_FORMAT, cap_name, cap);
+  GCF_ASSERT(cap, TopologyGstreamerException,
+             std::string("Cap \"") + cap_name + "\" could not be created!");
 
   caps[cap_name] = cap;
-
-  return true;
+  GST_DEBUG ("Loaded cap \"%s\": %" GST_PTR_FORMAT, cap_name, cap);
 }
 
-bool Topology::AssignCap(const char *filter_name, const char *cap_name) {
+void Topology::AssignCap(const char *filter_name, const char *cap_name) {
 
-  if (!HasElement(filter_name)) {
-    GST_ERROR("Can't assign cap to filter \"%s\": it does not exist!", filter_name);
-    return false;
-  }
-  if (!HasCap(cap_name)) {
-    GST_ERROR("Can't assign cap \"%s\": it does not exist!", cap_name);
-    return false;
-  }
+  GCF_ASSERT(HasElement(filter_name), TopologyInvalidAttributeException,
+             std::string("Can't assign cap to filter \"") + filter_name + "\": filter does not exist!");
+
+  GCF_ASSERT(HasCap(cap_name), TopologyInvalidAttributeException,
+             std::string("Can't assign cap \"") + cap_name + "\": cap does not exist!");
 
   GST_DEBUG ("Set filter \"%s\" to use cap \"%s\"", filter_name, cap_name);
 
   g_object_set (GetElement(filter_name), "caps", GetCaps(cap_name), NULL);
-
-  return true;
 }
 
-bool Topology::SetProperty(const char *elem_name, const char *prop_name, const char *prop_value) {
-  if (!HasElement(elem_name)) {
-    GST_ERROR("Can't set properties of \"%s\": it does not exist!", elem_name);
-    return false;
-  }
+void Topology::SetProperty(const char *elem_name, const char *prop_name, const char *prop_value) {
+  GCF_ASSERT(HasElement(elem_name), TopologyInvalidAttributeException,
+    std::string("Can't set properties of \"") + elem_name + "\": it does not exist!");
 
   gst_util_set_object_arg(G_OBJECT(GetElement(elem_name)), prop_name, prop_value);
-
-  return true;
 }
 
 bool Topology::HasRtspPipe(const string &elem_name) {
@@ -374,12 +331,12 @@ bool Topology::HasCap(const string &cap_name) {
 }
 
 TopologyInvalidAttributeException::TopologyInvalidAttributeException(const std::string &message)
-    : std::runtime_error(message) {
+    : GcfException(message) {
   GST_ERROR("%s", message.c_str());
 }
 
 TopologyGstreamerException::TopologyGstreamerException(const std::string &message)
-    : std::runtime_error(message) {
+    : GcfException(message) {
   GST_ERROR("%s", message.c_str());
 }
 
