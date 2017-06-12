@@ -134,26 +134,25 @@ void Json::GetPipelineStructure(Topology *topology) {
 
     // Get and validate root of pipe definitions
     const rapidjson::Value &json_pipes_obj = json_src[JSON_TAG_PIPES];
-    if (!json_pipes_obj.IsObject()) {
-      throw JsonInvalidTypeException("Object to store pipeline topology is not a valid object!");
-    }
+    GCF_ASSERT(json_pipes_obj.IsObject(), JsonInvalidTypeException,
+               "Object to store pipeline topology is not a valid object!");
 
     // Iterate through the root object
     for (rapidjson::Value::ConstMemberIterator pipe_itr = json_pipes_obj.MemberBegin();
          pipe_itr != json_pipes_obj.MemberEnd(); ++pipe_itr) {
 
-      // Validate pipenames
-      if (!pipe_itr->name.IsString())
-        throw JsonInvalidTypeException("Pipe name is not a string value!");
+      // Validate pipename
+      GCF_ASSERT(pipe_itr->name.IsString(), JsonInvalidTypeException, "Pipe name is not a string value!");
+
       const char *pipe_name = pipe_itr->name.GetString();
 
       // Create the pipe
       topology->CreatePipeline(pipe_name);
 
-      // Check whether the pipe is assigned to a valid object
-      if (!pipe_itr->value.IsObject()) {
-        throw JsonInvalidTypeException("Object to store elements in pipe \"%s\" is not a valid object!");
-      }
+      // Check whether the pipe is a valid object
+      GCF_ASSERT(pipe_itr->value.IsObject(), JsonInvalidTypeException,
+                 std::string("Object to store elements in pipe \"") + pipe_name + "\" is not a valid object!");
+
       const rapidjson::Value &elements_obj = pipe_itr->value;
 
       // Process elements contained in the pipe
@@ -161,23 +160,24 @@ void Json::GetPipelineStructure(Topology *topology) {
            elem_itr != elements_obj.MemberEnd(); ++elem_itr) {
 
         // Check whether the element has a correct name
-        if (!elem_itr->name.IsString()) {
-          throw JsonInvalidTypeException(std::string("Element name in pipe \"") + pipe_name + "\" is not a valid string!");
-        }
+        GCF_ASSERT(elem_itr->name.IsString(), JsonInvalidTypeException,
+                   std::string("Element name in pipe \"") + pipe_name + "\" is not a valid string!");
+
         const char *elem_name = elem_itr->name.GetString();
 
         // Validate that the element contains proper attributes
-        if (!elem_itr->value.IsObject())
-          throw JsonInvalidTypeException(std::string("Object assigned to element \"") + elem_name + "\" is not a valid object!");
+        GCF_ASSERT(elem_itr->value.IsObject(), JsonInvalidTypeException,
+                   std::string("Object assigned to element \"") + elem_name + "\" is not a valid object!");
+
         const rapidjson::Value &json_properties_obj = elem_itr->value;
 
         // Check whether it has a type defined and it's a correct string
-        if (!json_properties_obj.HasMember("type")) {
-          throw JsonInvalidTypeException(std::string("Element \"") + elem_name + "\" in pipe \"" + pipe_name + "\" does not have a type");
-        }
-        if (!json_properties_obj["type"].IsString()) {
-          throw JsonInvalidTypeException(std::string("Type assigned to \"") + elem_name + "\" is not a valid string!");
-        }
+        GCF_ASSERT(json_properties_obj.HasMember("type"), JsonInvalidTypeException,
+                   std::string("Element \"") + elem_name + "\" in pipe \"" + pipe_name + "\" does not have a type");
+
+        GCF_ASSERT(json_properties_obj["type"].IsString(), JsonInvalidTypeException,
+                   std::string("Type assigned to \"") + elem_name + "\" is not a valid string!");
+
         const char *type_name = json_properties_obj["type"].GetString();
 
         // Try to create the element
