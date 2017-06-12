@@ -14,7 +14,7 @@
 using namespace std;
 
 class Topology {
-public:
+ public:
 
   Topology();
   ~Topology();
@@ -55,8 +55,8 @@ public:
   bool AssignCap(const char *filter_name, const char *cap_name);
 
   // Elements
-  bool CreateElement(const char* elem_name, const char* elem_type);
-  bool CreateElement(const string& elem_name, const string& elem_type);
+  void CreateElement(const char* elem_name, const char* elem_type);
+  void CreateElement(const string& elem_name, const string& elem_type);
   bool ConnectElements(const string& src_name, const string& dst_name);
   bool SetProperty(const char* elem_name, const char* prop_name, const char* prop_value);
 
@@ -68,7 +68,7 @@ public:
   static gboolean LinkToTee(GstElement* tee, GstElement* element);
 
   // Converts a pipe to use with the Gst RTSP Server
-  bool ConnectPipe(const char *pipe,
+  void ConnectPipe(const char *pipe,
                    const char *start_point,
                    const char *source_pipe,
                    const char *source_end_point);
@@ -76,7 +76,7 @@ public:
   map<string, GstElement*> intersinks;
   map<string, GstElement*> queues;
 
-private:
+ private:
   map<string, GstElement*> elements;
   map<string, GstElement*> pipes;
   map<string, GstElement*> rtsp_pipes;
@@ -87,4 +87,8 @@ private:
 // Exceptions
 struct TopologyInvalidAttributeException : std::runtime_error {
   TopologyInvalidAttributeException(const std::string& message = "Error in topology attribute!");
+};
+
+struct TopologyGstreamerException : std::runtime_error {
+  TopologyGstreamerException(const std::string& message = "Gst can't make that.");
 };

@@ -29,10 +29,10 @@ Json::~Json() {
 }
 
 // Load, create and store caps
-void Json::SetCaps(Topology *topology) {
+void Json::GetCaps(Topology *topology) {
 
   if (json_src.HasMember(JSON_TAG_CAPS)) {
-    GST_DEBUG("Reading caps from json");
+    GST_DEBUG("Reading caps from JSON...");
 
     const rapidjson::Value &json_caps_obj = json_src[JSON_TAG_CAPS];
     if (!json_caps_obj.IsObject()) {
@@ -48,11 +48,13 @@ void Json::SetCaps(Topology *topology) {
 
       topology->CreateCap(itr->name.GetString(), itr->value.GetString());
     }
+  } else {
+    GST_DEBUG("No caps are defined.");
   }
 }
 
 // Read and save list of RTSP Pipes
-void Json::SetRtspPipes(Topology *topology) {
+void Json::GetRtspPipes(Topology *topology) {
 
   if (json_src.HasMember(JSON_TAG_RTSP)) {
     GST_DEBUG("Reading RTSP Pipes from JSON...");
@@ -80,7 +82,7 @@ void Json::SetRtspPipes(Topology *topology) {
 }
 
 // Intervideo powered pipe connections
-void Json::SetInterConnections(Topology *topology) {
+void Json::GetInterConnections(Topology *topology) {
 
   if (json_src.HasMember(JSON_TAG_CONNECTIONS)) {
     GST_DEBUG("Reading intervideo connections from JSON...");
@@ -112,6 +114,7 @@ void Json::SetInterConnections(Topology *topology) {
             std::string("Invalid element is specified for \"") + pipe_name + "\" in interconnections!");
       }
 
+      // Connect the pipes
       topology->ConnectPipe(
           pipe_name,
           pipe_itr->value["first_elem"].GetString(),
@@ -125,42 +128,52 @@ void Json::SetInterConnections(Topology *topology) {
 }
 
 // Read, create, and save pipes and elements. Set element attributes, then fill them into the pipe
-void Json::SetPipelineStructure(Topology *topology) {
+void Json::GetPipelineStructure(Topology *topology) {
   if (json_src.HasMember(JSON_TAG_PIPES)) {
-    GST_LOG("Reading pipelines from json");
+    GST_DEBUG("Reading pipelines from json");
 
+    // Get and validate root of pipe definitions
     const rapidjson::Value &json_pipes_obj = json_src[JSON_TAG_PIPES];
     if (!json_pipes_obj.IsObject()) {
       throw JsonInvalidTypeException("Object to store pipeline topology is not a valid object!");
     }
+
+    // Iterate through the root object
     for (rapidjson::Value::ConstMemberIterator pipe_itr = json_pipes_obj.MemberBegin();
          pipe_itr != json_pipes_obj.MemberEnd(); ++pipe_itr) {
 
+      // Validate pipenames
       if (!pipe_itr->name.IsString())
         throw JsonInvalidTypeException("Pipe name is not a string value!");
       const char *pipe_name = pipe_itr->name.GetString();
+
+      // Create the pipe
       topology->CreatePipeline(pipe_name);
 
+      // Check whether the pipe is assigned to a valid object
       if (!pipe_itr->value.IsObject()) {
         throw JsonInvalidTypeException("Object to store elements in pipe \"%s\" is not a valid object!");
       }
       const rapidjson::Value &elements_obj = pipe_itr->value;
 
+      // Process elements contained in the pipe
       for (rapidjson::Value::ConstMemberIterator elem_itr = elements_obj.MemberBegin();
            elem_itr != elements_obj.MemberEnd(); ++elem_itr) {
 
+        // Check whether the element has a correct name
         if (!elem_itr->name.IsString()) {
           throw JsonInvalidTypeException(std::string("Element name in pipe \"") + pipe_name + "\" is not a valid string!");
         }
         const char *elem_name = elem_itr->name.GetString();
 
+        // Validate that the element contains proper attributes
         if (!elem_itr->value.IsObject())
           throw JsonInvalidTypeException(std::string("Object assigned to element \"") + elem_name + "\" is not a valid object!");
         const rapidjson::Value &json_properties_obj = elem_itr->value;
 
         // Check whether it has a type defined and it's a correct string
         if (!json_properties_obj.HasMember("type")) {
-          JsonInvalidTypeException(std::string("Element \"") + elem_name + "\" in pipe \"" + pipe_name + "\" does not have a type");
+          throw JsonInvalidTypeException(std::string("Element \"") + elem_name + "\" in pipe \"" + pipe_name + "\" does not have a type");
         }
         if (!json_properties_obj["type"].IsString()) {
           throw JsonInvalidTypeException(std::string("Type assigned to \"") + elem_name + "\" is not a valid string!");
@@ -170,7 +183,7 @@ void Json::SetPipelineStructure(Topology *topology) {
         // Try to create the element
         topology->CreateElement(elem_name, type_name);
 
-        // Iterate through it's properties
+        // Iterate through its properties
         for (rapidjson::Value::ConstMemberIterator prop_itr = json_properties_obj.MemberBegin();
              prop_itr != json_properties_obj.MemberEnd(); ++prop_itr) {
 
@@ -178,70 +191,83 @@ void Json::SetPipelineStructure(Topology *topology) {
           if (!prop_itr->name.IsString() || !prop_itr->value.IsString()) {
             throw JsonInvalidTypeException(std::string("Definition of \"") + elem_name + "\" properties are incorrect!");
           }
+
           const char
               *prop_name = prop_itr->name.GetString(),
               *prop_value = prop_itr->value.GetString();
 
-          // Type is already handled
+          // Type is already handled, continue processing with the next property
           if (!strcmp("type", prop_name)) {
             continue;
           }
 
-          // Attach pre-defined filtercaps
+          // Attach property as pre-defined filtercaps and continue processing
           if (!strcmp("filter", prop_name)) {
             topology->AssignCap(elem_name, prop_value);
             continue;
           }
 
-          // Not a reserved keyword, set it as a generic attribute
+          // Finally, it's not a reserved keyword so set it as a generic property
           topology->SetProperty(elem_name, prop_name, prop_value);
+
+          // End of processing properties
         }
 
         // Try to add this element to the pipe
         topology->AddElementToBin(elem_name, pipe_name);
+
+        // End of processing pipe elements
       }
+
+      // End of processing pipelines
     }
+
+    // End of processing root pipe object
   } else {
     GST_DEBUG("There are no pipelines defined in the json data!");
   }
 }
 
 // Load connections and link elements
-void Json::SetConnections(Topology *topology) {
+void Json::GetConnections(Topology *topology) {
 
   if (json_src.HasMember(JSON_TAG_LINKS)) {
-    GST_LOG("Reading element connections from json");
+    GST_DEBUG("Reading element connections from json");
 
     const rapidjson::Value &json_links_arr = json_src[JSON_TAG_LINKS];
     if (!json_links_arr.IsArray()) {
       throw JsonInvalidTypeException("Object to store element connections is not a valid array!");
     }
 
-    // Iterate through the outer array storing arrays of the connections
+    // Iterate through the outer array storing the arrays of the connections
     for (rapidjson::Value::ConstValueIterator itr = json_links_arr.Begin();
          itr != json_links_arr.End(); ++itr) {
 
+      // Validate inner arrays
       if (!itr->IsArray()) {
         throw JsonInvalidTypeException("Object contained in element connections is not a valid array!");
       }
       rapidjson::Value::ConstValueIterator element_itr = itr->Begin();
 
+      // Process property name-value pairs in those arrays
       while (element_itr != itr->End()) {
 
-        // Validate property name-value pairs
+        // Validate the first element of the connection
         if (!element_itr->IsString()) {
           throw JsonInvalidTypeException("There is an invalid element specified in connections!");
         }
         const char *src_name = element_itr->GetString();
 
+        // Get the second element of the connection
         if (++element_itr != itr->End()) {
+          // Validate the second element of the connection
           if (!element_itr->IsString()) {
-            throw JsonInvalidTypeException("There is an invalid element specified in connections!");
+            throw JsonInvalidTypeException(
+                std::string("There is an invalid element specified after \"") + src_name + "\" in connections!"
+            );
           }
-          const char *dst_name = element_itr->GetString();
-
           // Now connect them
-          topology->ConnectElements(src_name, dst_name);
+          topology->ConnectElements(src_name, element_itr->GetString());
         }
       }
     }
@@ -251,11 +277,11 @@ void Json::SetConnections(Topology *topology) {
 }
 
 void Json::CreateTopology(Topology* topology) {
-  SetCaps(topology);
-  SetPipelineStructure(topology);
-  SetRtspPipes(topology);
-  SetInterConnections(topology);
-  SetConnections(topology);
+  GetCaps(topology);
+  GetPipelineStructure(topology);
+  GetRtspPipes(topology);
+  GetInterConnections(topology);
+  GetConnections(topology);
 }
 
 JsonParseException::JsonParseException(rapidjson::ParseErrorCode code, const char *msg, size_t offset)
@@ -265,5 +291,5 @@ JsonParseException::JsonParseException(rapidjson::ParseErrorCode code, const cha
 
 JsonInvalidTypeException::JsonInvalidTypeException(const std::string &message)
     : std::runtime_error(message) {
-  GST_ERROR("%s", message.c_str());
+  GST_ERROR("Processing JSON is failed: %s", message.c_str());
 }

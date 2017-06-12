@@ -17,11 +17,11 @@ class Json {
 
   void CreateTopology(Topology* topology);
 
-  void SetCaps(Topology *topology);
-  void SetPipelineStructure(Topology *topology);
-  void SetRtspPipes(Topology *topology);
-  void SetInterConnections(Topology *topology);
-  void SetConnections(Topology *topology);
+  void GetCaps(Topology *topology);
+  void GetPipelineStructure(Topology *topology);
+  void GetRtspPipes(Topology *topology);
+  void GetInterConnections(Topology *topology);
+  void GetConnections(Topology *topology);
 
  private:
 

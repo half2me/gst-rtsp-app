@@ -29,31 +29,26 @@ Topology::~Topology() {
   }
 }
 
-
-bool
+void
 Topology::ConnectPipe(const char *pipe,
                       const char *start_point,
                       const char *source_pipe,
                       const char *source_end_point)
 {
   if (!HasPipe(pipe)) {
-    GST_ERROR("MagicPipe \"%s\" does not exist!", pipe);
-    return false;
+    throw TopologyInvalidAttributeException(std::string("MagicPipe \"") + pipe + "\" does not exist!");
   }
 
   if (!HasPipe(source_pipe)) {
-    GST_ERROR("Pipe \"%s\" does not exist!", source_pipe);
-    return false;
+    throw TopologyInvalidAttributeException(std::string("Source pipe \"") + source_pipe + "\" does not exist!");
   }
 
   if (!HasElement(source_end_point)) {
-    GST_ERROR("Tunnel start point \"%s\" does not exist!", source_end_point);
-    return false;
+    throw TopologyInvalidAttributeException(std::string("Tunnel start point \"") + source_end_point + "\" does not exist!");
   }
 
   if (!HasElement(start_point)) {
-    GST_ERROR("Tunnel end point \"%s\" does not exist!", start_point);
-    return false;
+    throw TopologyInvalidAttributeException(std::string("Tunnel end point \"") + start_point + "\" does not exist!");
   }
 
   auto pipe_name = std::string(pipe);
@@ -70,8 +65,9 @@ Topology::ConnectPipe(const char *pipe,
     "queue", ("queue_" + pipe_name).c_str());
 
   if (!intersink || !intersrc || !queue) {
-    GST_ERROR("Error creating intervideo pair for pipe \"%s\"", pipe);
-    return FALSE;
+    throw TopologyGstreamerException(
+        std::string("Error creating intervideo pair elements for pipe \"") + pipe + "\"!"
+    );
   }
 
   auto gateway_name = "gateway_" + pipe_name;
@@ -85,8 +81,9 @@ Topology::ConnectPipe(const char *pipe,
         || !gst_bin_add(GST_BIN (GetPipe(source_pipe)), intersink)
         || !gst_element_link_many(GetElement(source_end_point), queue, intersink, NULL))
     {
-      GST_ERROR("Can't make work the magic gateway! Try with shift+l...");
-      return FALSE;
+      throw TopologyGstreamerException(
+          std::string("Can't make work the magic gateway! Pipe: \"") + pipe + "\". Try shift+l!"
+      );
     }
   }
 
@@ -94,8 +91,9 @@ Topology::ConnectPipe(const char *pipe,
   if (!gst_bin_add(GST_BIN (GetPipe(pipe)), intersrc)
       || !gst_element_link(intersrc, GetElement(start_point)))
   {
-    GST_ERROR("Can't make work the magic gateway! Try with -megahit...");
-    return FALSE;
+    throw TopologyGstreamerException(
+        std::string("Can't make work the magic gateway! Pipe: \"") + pipe + "\". Try with megahit!"
+    );
   }
 
   // TODO Temporary
@@ -103,34 +101,31 @@ Topology::ConnectPipe(const char *pipe,
     intersinks[pipe_name] = intersink;
     queues[pipe_name] = queue;
   }
-
-  return TRUE;
 }
 
-bool Topology::CreateElement(const char* elem_name, const char* elem_type) {
+void Topology::CreateElement(const char* elem_name, const char* elem_type) {
 
   if (HasElement(elem_name)) {
     GST_ERROR("Can't create \"%s\": it already exists.", elem_name);
-    return false;
+    return;
   }
 
   GST_LOG("Try to create element \"%s\" (type: %s)", elem_name, elem_type);
-
   GstElement *element = gst_element_factory_make(elem_type, elem_name);
 
   if (!element) {
-    GST_ERROR("Element \"%s\" (type: %s) could not be created.", elem_name, elem_type);
-    return false;
+    throw TopologyGstreamerException(
+        std::string("Element \"") + elem_name + "\" (type: " + elem_type + ") could not be created."
+    );
   }
 
   GST_DEBUG("Element \"%s\" (type: %s) is created.", elem_name, elem_type);
-  elements[elem_name] = element;
 
-  return true;
+  elements[elem_name] = element;
 }
 
-bool Topology::CreateElement(const string& elem_name, const string& elem_type) {
-  return CreateElement(elem_name.c_str(), elem_type.c_str());
+void Topology::CreateElement(const string& elem_name, const string& elem_type) {
+  CreateElement(elem_name.c_str(), elem_type.c_str());
 }
 
 bool Topology::CreatePipeline(const char* pipe_name) {
@@ -379,6 +374,11 @@ bool Topology::HasCap(const string &cap_name) {
 }
 
 TopologyInvalidAttributeException::TopologyInvalidAttributeException(const std::string &message)
+    : std::runtime_error(message) {
+  GST_ERROR("%s", message.c_str());
+}
+
+TopologyGstreamerException::TopologyGstreamerException(const std::string &message)
     : std::runtime_error(message) {
   GST_ERROR("%s", message.c_str());
 }

@@ -161,7 +161,7 @@ static gboolean KeyboardHandler(GIOChannel *source, GIOCondition cond, gpointer 
       g_object_set (topology->GetElement("MainSource"), "led-power", led, NULL);
       break;
 
-    // Main
+      // Main
     case 'w':
       gst_element_set_state (topology->GetPipe("MainPipe"), GST_STATE_PLAYING);
       break;
@@ -178,7 +178,7 @@ static gboolean KeyboardHandler(GIOChannel *source, GIOCondition cond, gpointer 
       gst_element_set_state (topology->GetPipe("MainPipe"), GST_STATE_NULL);
       break;
 
-    // View
+      // View
     case 's':
       gst_element_set_state (topology->GetPipe("ViewPipe"), GST_STATE_PLAYING);
       break;
@@ -195,7 +195,7 @@ static gboolean KeyboardHandler(GIOChannel *source, GIOCondition cond, gpointer 
       gst_element_set_state (topology->GetPipe("ViewPipe"), GST_STATE_NULL);
       break;
 
-    // Web
+      // Web
     case 'x':
       gst_element_set_state (topology->GetPipe("WebPipe"), GST_STATE_PLAYING);
       break;
@@ -229,7 +229,7 @@ int main(int argc, char *argv[]) {
 
   // Set up logging
   GST_DEBUG_CATEGORY_INIT (
-    GST_CAT_DEFAULT, "GCF_APP_MAIN", GST_DEBUG_FG_GREEN, "Main application"
+      GST_CAT_DEFAULT, "GCF_APP_MAIN", GST_DEBUG_FG_GREEN, "Main application"
   );
   Logger::Init();
 
@@ -240,15 +240,9 @@ int main(int argc, char *argv[]) {
     // Build pipeline directly from json definitions
     Json("test.json").CreateTopology(topology);
   }
-  catch (JsonParseException pe) {
-    GST_ERROR("Can't load JSON, quit!");
+  catch (std::exception) {
     Stop();
   }
-  catch (JsonInvalidTypeException te) {
-    GST_ERROR ("Can't build pipeline hierarchy from definitions, quit!");
-    Stop();
-  }
-
 
 
   GstBus *bus;
